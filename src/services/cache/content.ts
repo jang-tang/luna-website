@@ -2,8 +2,8 @@ import 'server-only';
 import { unstable_cache } from 'next/cache';
 import { cache } from 'react';
 import { getDb } from '@/services/database/client';
-import { selectAwardYears, selectMemberGroups, selectProjectYears, selectQnas, selectSettingRows } from '@/services/database/queries';
-import { buildSiteSettings } from '@/services/content/settings';
+import { selectAwardYears, selectMemberGroups, selectProjectYears, selectQnas, selectRecentProjectNames, selectSettingRows } from '@/services/database/queries';
+import { buildHomeTagsFromProjects, buildSiteSettings, HOME_TAG_LINES, HOME_TAGS_PER_LINE } from '@/services/content/settings';
 import { logger } from '@/lib/logger';
 import { CACHE_TAGS, CONTENT_REVALIDATE_SECONDS } from './tags';
 
@@ -31,3 +31,13 @@ export const getAwardYears = cached('awards', CACHE_TAGS.awards, () => selectAwa
 export const getProjectYears = cached('projects', CACHE_TAGS.projects, () => selectProjectYears(getDb()));
 export const getQnas = cached('qna', CACHE_TAGS.qna, () => selectQnas(getDb()));
 export const getSiteSettings = cached('settings', CACHE_TAGS.settings, async () => buildSiteSettings(await selectSettingRows(getDb())));
+
+/** 홈 화면용 설정: 흐르는 태그는 Projects DB 의 최신 프로젝트로 채운다 (프로젝트가 부족하면 사이트 설정값) */
+const getRecentProjectTags = cached('home-tags', CACHE_TAGS.projects, async () =>
+  buildHomeTagsFromProjects(await selectRecentProjectNames(getDb(), HOME_TAGS_PER_LINE * HOME_TAG_LINES)),
+);
+
+export async function getHomeSettings() {
+  const [settings, projectTags] = await Promise.all([getSiteSettings(), getRecentProjectTags()]);
+  return projectTags ? { ...settings, homeTags: projectTags } : settings;
+}

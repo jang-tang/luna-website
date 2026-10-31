@@ -3,7 +3,7 @@
 import { useRef, useState } from 'react';
 import { DetailButton } from '@/components/layout/DetailButton';
 import type { ProjectYear } from '@/services/content/types';
-import { PROJECT_IMAGE_FALLBACK, useFailedImages } from './image-fallback';
+import { cardImageStyle, useImageStatus } from './image-fallback';
 import { useEqualMaxWidth } from './useEqualMaxWidth';
 
 /** 프로젝트 페이지 (원본 utils.project.js). 선택한 연도가 상단 제목에도 반영된다. */
@@ -12,7 +12,7 @@ export function ProjectPage({ years }: { years: ProjectYear[] }) {
   const listRef = useRef<HTMLDivElement>(null);
   const current = years[active];
   useEqualMaxWidth(listRef, active);
-  const failed = useFailedImages(current?.projects.map((p) => p.image) ?? []);
+  const imageStatus = useImageStatus(current?.projects.map((p) => p.image) ?? []);
 
   return (
     <>
@@ -46,7 +46,7 @@ export function ProjectPage({ years }: { years: ProjectYear[] }) {
           <div id="project" ref={listRef}>
             {current?.projects.map((p) => (
               <div key={p.key} id="item" idx={p.name} suppressHydrationWarning>
-                <div id="image" style={p.image && !failed.has(p.image) ? { backgroundImage: `url('${p.image}')` } : PROJECT_IMAGE_FALLBACK}></div>
+                <div id="image" style={cardImageStyle('project', p.image, imageStatus(p.image))}></div>
                 <div id="text">
                   <div id="name">{p.name}</div>
                   <div id="description">{p.description}</div>

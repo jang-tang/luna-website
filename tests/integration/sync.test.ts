@@ -2,8 +2,8 @@ import { eq, sql } from 'drizzle-orm';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import type { CollectionKey } from '@/services/cache/tags';
 import type { Database } from '@/services/database/client';
-import { selectAwardYears, selectMemberGroups, selectQnas } from '@/services/database/queries';
-import { awards, media, memberGroups, members, qnas, syncRuns, syncState } from '@/services/database/schema';
+import { selectAwardYears, selectMemberGroups, selectQnas, selectRecentProjectNames } from '@/services/database/queries';
+import { awards, media, memberGroups, members, projects, qnas, syncRuns, syncState } from '@/services/database/schema';
 import { NotionClient } from '@/services/notion/client';
 import { runSync, type SyncDeps } from '@/services/notion/sync';
 import { FakeNotion, P } from '../helpers/fake-notion';
@@ -333,5 +333,18 @@ describe('Notion → DB 동기화', () => {
       ['여름 대회', '2025년 07월 18일 하루동안'],
     ]);
     expect(years[0]!.awards[0]!.date).toBe('2026년 01월 14일부터 닷새동안');
+  });
+
+  it('홈 태그용 프로젝트 이름은 최신 연도부터, 같은 연도는 이름순, 비공개·삭제 제외', async () => {
+    await db.insert(projects).values([
+      { notionPageId: 'p1', name: '나중', year: 2024 },
+      { notionPageId: 'p2', name: '가장 최신', year: 2025 },
+      { notionPageId: 'p3', name: '가나다', year: 2024 },
+      { notionPageId: 'p4', name: '오래됨', year: 2018 },
+      { notionPageId: 'p5', name: '숨김', year: 2025, status: 'hidden' },
+      { notionPageId: 'p6', name: '삭제됨', year: 2026, status: 'deleted' },
+    ]);
+    expect(await selectRecentProjectNames(db, 10)).toEqual(['가장 최신', '가나다', '나중', '오래됨']);
+    expect(await selectRecentProjectNames(db, 2)).toEqual(['가장 최신', '가나다']);
   });
 });

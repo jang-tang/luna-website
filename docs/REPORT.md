@@ -159,6 +159,8 @@ Dockerfile · docker-compose.yml · docker-compose.traefik.yml · .gitlab-ci.yml
 | DB Query (페이지당, 로컬 PGlite) | 해당 없음 | 중앙값 0.4~0.9ms, p95 ≤ 1.5ms (ISR 캐시 적중 시 DB 미조회) |
 | 이미지 (실제 노션 자료) | 원본 사진 최대 31MB/장 | 멤버 평균 11KB · 업적 평균 53KB · 프로젝트 평균 6KB (WebP) |
 
+> 마지막 테스트 수: 단위·통합 43개, E2E 44개(1개 건너뜀) 모두 통과.
+>
 > 실제 노션 자료(멤버 75 · 업적 114 · 프로젝트 70)로 다시 측정한 결과도 같은 수준: 모바일 LCP 0.91초(홈·멤버·업적·프로젝트), Q&A 2.05초(유튜브 영상), CLS ≤ 0.003, 멤버·업적·프로젝트 TBT 7~14ms.
 
 주요 개선 요인: 원본 이미지(최대 2MB/장) → 표시 크기 2배 WebP, jQuery·ScrollMagic·GSAP 제거, 콘텐츠를 서버에서 미리 렌더링(원본은 JS 실행 후 DOM 생성), 히어로 배경 preload, 3D 지연 로딩, 정적 자산·미디어 장기 캐시.
@@ -173,9 +175,9 @@ Dockerfile · docker-compose.yml · docker-compose.traefik.yml · .gitlab-ci.yml
 | Build (`npm run build`, DB 있음/없음 두 경우) | ✅ |
 | Lint (`eslint .`) | ✅ |
 | Type Check (`tsc --noEmit`) | ✅ |
-| Unit Test (25개: 속성 파서, 설정/유튜브 URL 검증, Notion 클라이언트 재시도·페이지네이션, 이미지 변환·SSRF 차단, 로그 마스킹, 인증) | ✅ 25/25 |
-| Integration Test (13개: 실제 PostgreSQL 엔진 + 가짜 Notion API — 초기/증분/수정/비공개/삭제/복구/분 단위 수정/검증 실패/Notion 장애 격리/대량 삭제 보류/이미지 재시도/동시 실행/시드 정리/잘린 텍스트/미디어 정리) | ✅ 13/13 |
-| E2E (Playwright, 데스크톱+모바일 38개: 전 페이지·라우팅·404·스케일·탭·아코디언·스크롤·glass·3D·API 401·관리자 인증·헬스·미디어 캐시·보안 헤더) | ✅ 38/38 |
+| Unit Test (속성 파서, 설정/유튜브 URL 검증, 홈 태그 분배, Notion 클라이언트 재시도·페이지네이션, 이미지 변환·SSRF·DNS 리바인딩 차단, 로그 마스킹, 인증) | ✅ 통과 |
+| Integration Test ( 실제 PostgreSQL 엔진 + 가짜 Notion API — 초기/증분/수정/비공개/삭제/복구/분 단위 수정/검증 실패/Notion 장애 격리/대량 삭제 보류/이미지 재시도/동시 실행/시드 정리/잘린 텍스트/미디어 정리, 실제 노션 구조(기수 탭·날짜 문구), 변환 불가 사진 1회 처리, 홈 태그 최신순) | ✅ 통과 |
+| E2E (Playwright, 데스크톱+모바일: 전 페이지·라우팅·404·스케일·탭·아코디언·스크롤·glass·3D·API 401·관리자 인증·헬스·미디어 캐시·보안 헤더, 휠 스크롤, 사진 로딩 중·실패 시 로고, .html → 새 주소 이동) | ✅ 통과 (모바일 휠 1개 건너뜀) |
 | 실제 Notion API: 인증, DB 생성·이전(188건), 전체 동기화, 증분 동기화, 실제 수정 반영 후 원복 | ✅ |
 | 캐시 무효화 (DB 변경 → 무효화 → SWR 로 다음 요청에 반영) | ✅ |
 | DB 장애 시 서비스 (DB 중지 상태에서 전 페이지·이미지 200, 무효화 후에도 마지막 정상 페이지 유지, 헬스 503, DB 복구 후 자동 회복) | ✅ |
@@ -186,18 +188,17 @@ Dockerfile · docker-compose.yml · docker-compose.traefik.yml · .gitlab-ci.yml
 | Docker 앱 대상 E2E 38개 / 화면 비교(레이아웃 차이 0, 모바일 홈 예외 동일) | ✅ |
 | 컨테이너 간 캐시 무효화(scheduler → app), 동시 실행 잠금(수동 실행이 skipped) | ✅ |
 | Traefik 오버라이드 설정 검증(`docker compose config`, SITE_HOST 누락 시 거부) | ✅ |
-| GitLab CI 배포 | ❌ 미실행 (운영 서버 접근 없음) |
+| Vercel 운영 배포 · 운영 DB 전체 동기화 · 깃허브 Actions 15분 동기화 · push 자동 배포 | ✅ (K 절) |
+| GitLab CI 배포 | 해당 없음 (깃허브·Vercel 로 전환) |
 
 ---
 
 ## H. 직접 해야 할 작업
 
-1. **운영 서버 배포**: 로컬 Docker(colima)에서는 전체 검증 완료. 운영 서버에서 `docker compose up -d --build` 또는 GitLab CI 로 배포
-2. **운영 비밀값 설정** (GitLab CI/CD File 변수 `LUNA_ENV_FILE` 또는 서버 `.env`):
-   `POSTGRES_PASSWORD`, `NOTION_TOKEN`, `NOTION_*_DATA_SOURCE_ID` 5개(로컬 `.env` 값과 동일), `SYNC_SECRET`(`openssl rand -hex 32`), `ADMIN_PASSWORD`
-3. **새 도메인 연결**: `luna.codes` 는 탈취되어 사용하지 않음(코드·설정에서 모두 제거). 새 도메인을 정하면 `SITE_URL`, `SITE_HOST` 설정
-4. Vercel 로 배포할 경우: 관리형 PostgreSQL 생성 후 `DATABASE_URL`, `CRON_SECRET` 설정 (유료 인프라는 승인 없이 만들지 않았음)
-5. (선택) Notion 통합 권한을 `메모장` 전체가 아니라 LUNA 데이터베이스 5개에만 공유하도록 좁히기 — 현재 통합은 개인 페이지 92개에도 접근 가능
+1. **노션 내용 정리**: '모두의 창업 경기 비즈쿨…' 업적 사진(HEIC)을 JPG/PNG 로 다시 올리기, Projects 의 빈 행 2개 삭제
+2. **새 도메인**: `luna.codes` 는 탈취되어 사용하지 않음. 새 도메인을 정하면 Vercel 에 연결하고 `SITE_URL`(Vercel), `SYNC_URL`(깃허브 Secret) 변경
+3. **원래 루나 노션 연결**: DIMIGO LUNA 관리자에게 'API 토큰' 방식 연결을 받으면 OPERATIONS.md 2-1 절차로 토큰 + 데이터베이스 ID 교체
+4. (권장) Notion 통합 권한을 사이트용 데이터베이스 5개에만 공유하도록 좁히기 — 현재 통합은 개인 워크스페이스 전체에 접근 가능
 
 ---
 
@@ -208,7 +209,7 @@ Dockerfile · docker-compose.yml · docker-compose.traefik.yml · .gitlab-ci.yml
 npm install
 npm run db:dev                       # (PostgreSQL 이 없을 때) 별도 터미널
 npm run db:migrate
-npm run sync -- --full               # Notion → DB 최초 동기화 (.env 의 NOTION_* 사용)
+npm run sync -- --full               # Notion → 로컬 DB 동기화 (.env 의 NOTION_* 사용)
 npm run dev                          # http://localhost:3000
 
 # 2) 품질 검사
@@ -216,17 +217,16 @@ npm run lint && npm run typecheck && npm test
 npm run build && npm run start       # 별도 터미널
 npm run test:e2e
 
-# 3) 정기 동기화
-npm run scheduler                    # 서버 상주 (Docker 에서는 scheduler 서비스가 담당)
-npm run sync:status                  # 상태 확인
+# 3) 운영 배포 (Vercel)
+git push origin main                 # Vercel 자동 배포 (빌드 전 DB 마이그레이션)
+npx vercel ls luna-website           # 배포 상태 확인
 
-# 4) 운영 배포 (Docker Compose)
-cp .env.example .env                 # 값 채우기
-docker compose up -d --build         # db → migrate → app → scheduler
-# scheduler 가 시작 즉시 첫 동기화 실행 (수동: docker compose exec scheduler node dist/scripts/sync-notion.js --full)
-# Traefik 서버: SITE_HOST=<새 도메인> docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
-# GitLab: main 에 푸시 → .gitlab-ci.yml 이 app/worker 이미지 빌드·푸시·배포
+# 4) 운영 동기화
+#   - 자동: 깃허브 Actions 가 15분마다 실행 (Actions → Notion sync)
+#   - 수동: https://luna-website-xi.vercel.app/admin/sync 또는 Actions 의 Run workflow (mode: auto/full)
 ```
+
+Docker 로 직접 서버를 운영하는 방법은 README '배포 B' 와 OPERATIONS.md 5-2 에 남아 있습니다.
 
 ---
 
@@ -253,3 +253,33 @@ docker compose up -d --build         # db → migrate → app → scheduler
 - 관리자 비밀번호는 무작위 12자 이상으로 하고, 가능하면 리버스 프록시(Traefik/Nginx)에서 `/admin` 경로에 IP 제한이나 요청 횟수 제한을 거세요 (앱 자체에는 로그인 시도 횟수 제한이 없음).
 - Notion 통합(new_site)은 현재 개인 워크스페이스 전체를 볼 수 있습니다. 사이트용 데이터베이스 4개만 공유하도록 좁히세요.
 - 토큰 유출이 의심되면 Notion 개발자 포털에서 토큰을 재발급하고 `.env` 들을 교체하세요.
+
+---
+
+## K. Vercel 배포와 이후 변경 사항 (2026-10-31)
+
+### 배포 결과
+
+| 항목 | 내용 |
+| --- | --- |
+| 사이트 | <https://luna-website-xi.vercel.app> (Vercel 무료 Hobby, 계정 `t01089405151-8266`, 프로젝트 `luna-website`) |
+| DB | Neon 무료, 미국 동부 — Vercel 함수와 같은 지역(DB 응답 3ms), 방문자에게는 한국 캐시 서버가 페이지 제공 |
+| 배포 자동화 | 깃허브 `main` push → Vercel 자동 배포 (약 1분), 빌드 전 `vercel-build` 로 DB 마이그레이션 |
+| 동기화 자동화 | 깃허브 Actions 15분마다 `POST /api/cron/sync` (Secrets `SYNC_URL`, `SYNC_SECRET`) + Vercel Cron 하루 1번 예비 |
+| 비밀값 | 운영 전용 값을 새로 생성해 Vercel 환경변수(민감 정보)로 저장, 로컬 `.env.vercel` 에 보관(git 제외), CLI 배포 시 업로드 제외(`.vercelignore`) |
+| 확인 | 운영 전체 동기화 272건(70초), 페이지·사진·관리자 인증·동기화 API 인증·보안 헤더·canonical 주소, 깃허브 Actions 수동 실행 3회 성공 |
+
+배포 중 발견해 고친 문제: CLI 로 만든 프로젝트를 Vercel 이 Next.js 로 인식하지 못해 전 페이지 404 → `vercel.json` 에 `"framework": "nextjs"` 지정.
+
+### 실제 노션 데이터와 화면 관련 변경
+
+| 변경 | 내용 |
+| --- | --- |
+| 실제 루나 노션 구조로 전환 | DIMIGO LUNA 'Notion API' 의 Members/Awards/Projects/FAQ 구조(영어 열 이름) 기준. 2024~2026 자료, 8·9기 반영 |
+| 기수 탭·날짜 문구 | 탭은 최신 기수부터(명예 멤버 마지막), 업적 날짜는 "2025년 07월 18일 하루동안" 형식으로 자동 변환 |
+| 사이트 설정 DB | `npm run notion:create-settings` 로 'LUNA 사이트 설정' 생성 (홈 숫자·Q&A 영상) |
+| 홈 흐르는 태그 | Projects 의 최신 프로젝트 24개(최신 연도부터)로 자동 구성, 프로젝트를 추가하면 함께 갱신 |
+| 사진 대체 표시 | 업적·프로젝트 사진이 없거나·불러오는 중이거나·실패하면 루나 로고 |
+| 변환 불가 사진 | HEIC 등은 한 번만 기록하고 사진이 바뀔 때까지 재다운로드하지 않음 (15분마다 불필요한 다운로드·캐시 갱신 방지) |
+| 주소 정리 | 메뉴 링크와 주소창에서 `.html` 제거(`/member`), 예전 `*.html` 주소는 308 영구 이동 |
+| 휠 스크롤 | 원본 CSS `* { overscroll-behavior: none }` 이 최신 Chrome 에서 휠 스크롤을 막던 문제(원본도 동일) → 실제 스크롤 영역에만 적용 |

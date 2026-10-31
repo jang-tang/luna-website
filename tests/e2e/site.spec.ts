@@ -2,10 +2,10 @@ import { expect, test } from '@playwright/test';
 
 const PAGES = [
   { path: '/', slug: 'home' },
-  { path: '/member.html', slug: 'member' },
-  { path: '/award.html', slug: 'award' },
-  { path: '/project.html', slug: 'project' },
-  { path: '/qna.html', slug: 'qna' },
+  { path: '/member', slug: 'member' },
+  { path: '/award', slug: 'award' },
+  { path: '/project', slug: 'project' },
+  { path: '/qna', slug: 'qna' },
 ];
 
 test.describe('기존 라우팅과 레이아웃', () => {
@@ -25,8 +25,18 @@ test.describe('기존 라우팅과 레이아웃', () => {
     });
   }
 
-  test('확장자 없는 경로(/member 등)와 /index.html 도 동작하고, 없는 페이지는 404', async ({ page, request }) => {
-    for (const path of ['/member', '/award', '/project', '/qna', '/index.html']) expect((await request.get(path)).status()).toBe(200);
+  test('예전 *.html 주소는 확장자 없는 주소로 영구 이동하고, 없는 페이지는 404', async ({ page, request }) => {
+    const moved = [['/member.html', '/member'], ['/award.html', '/award'], ['/project.html', '/project'], ['/qna.html', '/qna'], ['/index.html', '/']] as const;
+    for (const [from, to] of moved) {
+      const res = await request.get(from, { maxRedirects: 0 });
+      expect(res.status(), from).toBe(308);
+      expect(new URL(res.headers()['location']!, 'http://x').pathname, from).toBe(to);
+      expect((await request.get(from)).status(), `${from} → ${to}`).toBe(200);
+    }
+    // 메뉴 링크에는 .html 이 없다
+    await page.goto('/');
+    const hrefs = await page.locator('#navbar a').evaluateAll((els) => els.map((el) => el.getAttribute('href')));
+    expect(hrefs.some((h) => h?.endsWith('.html'))).toBe(false);
     const res = await page.goto('/does-not-exist');
     expect(res?.status()).toBe(404);
     await expect(page.getByText('페이지를 찾을 수 없습니다')).toBeVisible();
@@ -42,7 +52,7 @@ test.describe('기존 라우팅과 레이아웃', () => {
 
 test.describe('인터랙션', () => {
   test('멤버: 기수 탭 전환 시 제목과 카드가 바뀐다', async ({ page }) => {
-    await page.goto('/member.html');
+    await page.goto('/member');
     const tabs = page.locator('#page.member #category #item');
     await expect(tabs.first()).toHaveClass(/active/);
     const second = tabs.nth(1);
@@ -54,7 +64,7 @@ test.describe('인터랙션', () => {
   });
 
   test('업적: 연도 탭 전환 시 "N년의 LUNA" 와 카드가 바뀐다', async ({ page }) => {
-    await page.goto('/award.html');
+    await page.goto('/award');
     const tabs = page.locator('#page.award #category #item');
     const last = tabs.last();
     const year = (await last.getAttribute('idx'))!;
@@ -64,7 +74,7 @@ test.describe('인터랙션', () => {
   });
 
   test('프로젝트: 연도 탭이 상단 제목 연도에도 반영된다', async ({ page }) => {
-    await page.goto('/project.html');
+    await page.goto('/project');
     const tab = page.locator('#page.project #category #item').nth(2);
     const year = (await tab.getAttribute('idx'))!;
     await tab.click();
@@ -73,7 +83,7 @@ test.describe('인터랙션', () => {
   });
 
   test('Q&A: 질문 클릭 시 답변이 열리고 다시 클릭하면 닫힌다', async ({ page }) => {
-    await page.goto('/qna.html');
+    await page.goto('/qna');
     const item = page.locator('#page.qna #item').first();
     const answer = item.locator('#a');
     await expect(answer).toHaveCSS('height', '0px');
@@ -99,8 +109,8 @@ test.describe('인터랙션', () => {
     // 동기화된 사진 요청을 모두 실패시킨다
     await page.route('**/media/**', (route) => route.abort());
     for (const p of [
-      { path: '/award.html', selector: '#page.award #award #item #image' },
-      { path: '/project.html', selector: '#page.project #project #item #image' },
+      { path: '/award', selector: '#page.award #award #item #image' },
+      { path: '/project', selector: '#page.project #project #item #image' },
     ]) {
       await page.goto(p.path);
       const images = page.locator(p.selector);
@@ -111,8 +121,25 @@ test.describe('인터랙션', () => {
     }
   });
 
+  test('업적·프로젝트 사진을 불러오는 동안 루나 로고를 보여주고, 다 불러오면 사진만 보여준다', async ({ page }) => {
+    // 사진 응답을 잠시 붙잡아 두었다가 풀어준다
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => (release = resolve));
+    await page.route('**/media/**', async (route) => {
+      await gate;
+      await route.continue();
+    });
+    // 사진이 붙잡혀 있어 load 이벤트가 끝나지 않으므로 문서 구조까지만 기다린다
+    await page.goto('/award', { waitUntil: 'domcontentloaded' });
+    const image = page.locator('#page.award #award #item #image').filter({ has: page.locator('xpath=self::*[contains(@style, "/media/")]') }).first();
+    await expect(image).toHaveAttribute('style', /logo-512x512/);
+    release();
+    await expect.poll(() => image.getAttribute('style')).not.toContain('logo-512x512');
+    await expect(image).toHaveAttribute('style', /\/media\//);
+  });
+
   test('"스크롤하여 더 알아보기" 클릭 시 한 화면 아래로 부드럽게 스크롤', async ({ page }) => {
-    await page.goto('/member.html');
+    await page.goto('/member');
     await page.locator('#page.main #detail').click();
     await page.waitForTimeout(1300);
     const top = await page.evaluate(() => (document.querySelector('#scroll') as HTMLElement).scrollTop);
@@ -120,7 +147,7 @@ test.describe('인터랙션', () => {
   });
 
   test('멤버/프로젝트 페이지: 스크롤하면 내비게이션 glass 해제, 맨 위로 오면 복귀', async ({ page }) => {
-    await page.goto('/project.html');
+    await page.goto('/project');
     const navbar = page.locator('#navbar');
     await expect(navbar).toHaveClass(/glass/);
     await page.evaluate(() => ((document.querySelector('#scroll') as HTMLElement).scrollTop = 400));
@@ -171,7 +198,7 @@ test.describe('API / 보안', () => {
     expect(health.status()).toBe(200);
     expect(await health.json()).toMatchObject({ ok: true, db: 'up' });
 
-    await page.goto('/member.html');
+    await page.goto('/member');
     const style = await page.locator('#page.member #member #item #image').first().getAttribute('style');
     const src = style?.match(/url\(([^)]+)\)/)?.[1]?.replace(/['"]/g, '');
     expect(src).toMatch(/^\/media\/[0-9a-f]{32}\.webp$|default\.svg$/);

@@ -1,4 +1,4 @@
-import { asc, eq } from 'drizzle-orm';
+import { asc, desc, eq } from 'drizzle-orm';
 import type { AwardYear, MemberGroup, ProjectYear, QnaItem } from '@/services/content/types';
 import type { Database } from './client';
 import { awards, memberGroups, members, projects, qnas, siteSettings } from './schema';
@@ -111,6 +111,17 @@ export async function selectQnas(db: Database): Promise<QnaItem[]> {
     .where(eq(qnas.status, 'published'))
     .orderBy(asc(qnas.sortOrder), asc(qnas.question), asc(qnas.id));
   return rows.map((r) => ({ key: String(r.id), question: r.question, answer: r.answer }));
+}
+
+/** 홈 화면 흐르는 태그용: 최신 연도부터 프로젝트 이름 (같은 연도는 order → 이름순) */
+export async function selectRecentProjectNames(db: Database, limit: number): Promise<string[]> {
+  const rows = await db
+    .select({ name: projects.name })
+    .from(projects)
+    .where(eq(projects.status, 'published'))
+    .orderBy(desc(projects.year), asc(projects.sortOrder), asc(projects.name), asc(projects.id))
+    .limit(limit);
+  return rows.map((r) => r.name);
 }
 
 export async function selectSettingRows(db: Database) {

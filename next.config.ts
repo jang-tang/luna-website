@@ -29,11 +29,11 @@ const nextConfig: NextConfig = {
   output: 'standalone',
   poweredByHeader: false,
   reactStrictMode: true,
-  // 기존 URL(*.html, /index.html) 을 그대로 유지한다
-  async rewrites() {
+  // 주소는 확장자 없이(/member) 쓰고, 예전 주소(/member.html, /index.html)는 영구 이동(308)으로 새 주소에 연결한다
+  async redirects() {
     return [
-      { source: '/index.html', destination: '/' },
-      ...LEGACY_PAGES.map((page) => ({ source: `/${page}.html`, destination: `/${page}` })),
+      { source: '/index.html', destination: '/', permanent: true },
+      ...LEGACY_PAGES.map((page) => ({ source: `/${page}.html`, destination: `/${page}`, permanent: true })),
     ];
   },
   async headers() {

@@ -4,13 +4,15 @@
 콘텐츠는 **Notion** 에서 관리하고, 일정 주기로 **PostgreSQL** 에 동기화한 뒤 **Next.js(React)** 가 DB 에서 읽어 화면을 렌더링합니다.
 
 ```text
-Notion (원본) ──(15분마다 동기화)──▶ PostgreSQL ──▶ Next.js (ISR 캐시) ──▶ 방문자
-                 scheduler / cron                    동기화 시 캐시 무효화(SWR)
+Notion (원본) ──(15분마다 동기화)──▶ PostgreSQL(Neon) ──▶ Next.js (ISR 캐시, Vercel) ──▶ 방문자
+               깃허브 Actions                                동기화 시 캐시 무효화(SWR)
 ```
+
+- **운영 중인 사이트**: <https://luna-website-xi.vercel.app> — `main` 에 push 하면 Vercel 이 자동 배포합니다.
 
 - 방문자 요청 시에는 Notion API 를 호출하지 않습니다. Notion 이 장애여도 DB 의 마지막 데이터로 정상 표시됩니다.
 - **운영·테스트·배포 절차는 [docs/OPERATIONS.md](docs/OPERATIONS.md) 를 보세요.**
-- 화면(UI)은 기존 정적 사이트(HTML/SCSS/jQuery)와 동일합니다. 기존 URL(`/member.html` 등)도 그대로 동작합니다.
+- 화면(UI)은 기존 정적 사이트(HTML/SCSS/jQuery)와 동일합니다. 주소는 확장자 없이(`/member`) 쓰고, 예전 주소(`/member.html` 등)는 새 주소로 영구 이동(308)합니다.
 
 ## 기술 스택
 
@@ -93,7 +95,15 @@ npm run dev                     # http://localhost:3000
 
 ## 배포
 
-### A. Docker Compose (기존 GitLab CI + Traefik 서버)
+### A. Vercel (현재 운영 중)
+
+- 사이트: <https://luna-website-xi.vercel.app>, DB: Neon 무료(Vercel Storage 연결), 계정: `t01089405151-8266` / 프로젝트 `luna-website`
+- 배포: `main` 브랜치에 push → Vercel 자동 배포. 빌드 전에 DB 마이그레이션 자동 실행(`vercel-build`)
+- 15분 동기화: 깃허브 Actions(`.github/workflows/notion-sync.yml`)가 `POST /api/cron/sync` 호출 — 저장소 Secrets `SYNC_URL`, `SYNC_SECRET` 필요
+- Vercel Cron(`vercel.json`)은 무료 요금제 한도에 맞춰 하루 1번(새벽 3시) 예비 동기화
+- 환경변수·도메인·문제 해결은 [docs/OPERATIONS.md 5-1](docs/OPERATIONS.md) 참고
+
+### B. (대안) Docker Compose — 직접 서버 운영
 
 ```bash
 cp .env.example .env            # POSTGRES_PASSWORD, NOTION_*, SYNC_SECRET, ADMIN_PASSWORD 등
@@ -109,12 +119,6 @@ docker compose up -d --build    # db → migrate(1회) → app → scheduler
 - 스케줄러는 시작 즉시 첫 동기화를 실행합니다 (빈 DB 기준 약 45초). 수동 실행: `docker compose exec scheduler node dist/scripts/sync-notion.js --full`
 - 이미지 크기: app 약 450MB, worker 약 400MB (워커는 번들된 스크립트 + sharp 만 포함)
 - macOS 로컬에서 Docker Desktop 없이 테스트하려면: `brew install colima docker docker-compose docker-buildx && colima start --cpu 4 --memory 4`
-
-### B. Vercel
-
-- `vercel.json` 의 Cron 이 15분마다 `GET /api/cron/sync` 를 호출합니다 (`CRON_SECRET` 설정 필요). 주기는 `vercel.json` 에서 변경합니다.
-- DB 는 외부 관리형 PostgreSQL(Neon, Supabase 등)을 사용하고 `DATABASE_URL` 을 설정합니다. pgbouncer(transaction) 경유 시 `DATABASE_PREPARE=false`.
-- 서버리스 환경이므로 `scheduler` 프로세스는 사용하지 않습니다.
 
 ## 동기화 동작
 

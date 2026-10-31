@@ -19,10 +19,10 @@ export const VIEWPORTS = {
 
 export const PAGES = [
   { name: 'home', legacy: '/', next: '/' },
-  { name: 'member', legacy: '/member.html', next: '/member.html' },
-  { name: 'award', legacy: '/award.html', next: '/award.html' },
-  { name: 'project', legacy: '/project.html', next: '/project.html' },
-  { name: 'qna', legacy: '/qna.html', next: '/qna.html' },
+  { name: 'member', legacy: '/member.html', next: '/member' },
+  { name: 'award', legacy: '/award.html', next: '/award' },
+  { name: 'project', legacy: '/project.html', next: '/project' },
+  { name: 'qna', legacy: '/qna.html', next: '/qna' },
 ] as const;
 
 async function settle(page: Page) {

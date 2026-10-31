@@ -30,9 +30,9 @@ export const SETTING_DESCRIPTIONS: Record<string, string> = {
   [SETTING_KEYS.projectCount]: '홈: "N개의 프로젝트" 의 N',
   [SETTING_KEYS.contestCount]: '홈/업적: "N개의 대회" 의 N',
   [SETTING_KEYS.prizeTotal]: '홈/업적: 상금 및 지원금 총액 (예: 7,500만원)',
-  [SETTING_KEYS.homeTags1]: '홈 프로젝트 섹션 태그 1줄 (쉼표로 구분)',
-  [SETTING_KEYS.homeTags2]: '홈 프로젝트 섹션 태그 2줄 (쉼표로 구분)',
-  [SETTING_KEYS.homeTags3]: '홈 프로젝트 섹션 태그 3줄 (쉼표로 구분)',
+  [SETTING_KEYS.homeTags1]: '홈 태그 1줄 예비값 — 평소에는 Projects DB 의 최신 프로젝트가 자동으로 쓰이고, 프로젝트가 3개 미만일 때만 사용 (쉼표로 구분)',
+  [SETTING_KEYS.homeTags2]: '홈 태그 2줄 예비값 — 평소에는 Projects DB 의 최신 프로젝트가 자동으로 쓰이고, 프로젝트가 3개 미만일 때만 사용 (쉼표로 구분)',
+  [SETTING_KEYS.homeTags3]: '홈 태그 3줄 예비값 — 평소에는 Projects DB 의 최신 프로젝트가 자동으로 쓰이고, 프로젝트가 3개 미만일 때만 사용 (쉼표로 구분)',
   [SETTING_KEYS.qnaVideoUrl]: 'Q&A 페이지 유튜브 영상 (watch / youtu.be / embed URL 모두 가능)',
 };
 
@@ -82,4 +82,19 @@ export function buildSiteSettings(rows: Array<{ key: string; value: string }>): 
     homeTags: tags,
     qnaVideoUrl: (video && toYoutubeEmbedUrl(video)) || DEFAULT_SETTINGS.qnaVideoUrl,
   };
+}
+
+/** 홈 태그: 최신 프로젝트 이름을 3줄에 나눠 담는 개수 (원본 사이트의 한 줄 7~8개와 비슷하게) */
+export const HOME_TAGS_PER_LINE = 8;
+export const HOME_TAG_LINES = 3;
+
+/**
+ * 최신순 프로젝트 이름 → 홈 태그 3줄. 1줄에 가장 최신 프로젝트가 온다.
+ * 프로젝트가 줄 수보다 적으면 null (사이트 설정/기본값을 쓰도록)
+ */
+export function buildHomeTagsFromProjects(names: string[]): string[][] | null {
+  const unique = [...new Set(names.map((n) => n.trim()).filter(Boolean))];
+  if (unique.length < HOME_TAG_LINES) return null;
+  const perLine = Math.min(HOME_TAGS_PER_LINE, Math.ceil(unique.length / HOME_TAG_LINES));
+  return Array.from({ length: HOME_TAG_LINES }, (_, i) => unique.slice(i * perLine, (i + 1) * perLine)).filter((line) => line.length > 0);
 }

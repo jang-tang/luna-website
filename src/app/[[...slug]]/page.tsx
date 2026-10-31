@@ -6,11 +6,11 @@ import { HomePage } from '@/components/pages/HomePage';
 import { MemberPage } from '@/components/pages/MemberPage';
 import { ProjectPage } from '@/components/pages/ProjectPage';
 import { QnaPage } from '@/components/pages/QnaPage';
-import { getAwardYears, getMemberGroups, getProjectYears, getQnas, getSiteSettings } from '@/services/cache/content';
+import { getAwardYears, getHomeSettings, getMemberGroups, getProjectYears, getQnas, getSiteSettings } from '@/services/cache/content';
 import { canReachDatabase } from '@/services/database/build-check';
 
 /**
- * 모든 기존 URL(/, /member(.html), /award(.html), /project(.html), /qna(.html))을 처리하는 단일 라우트.
+ * 모든 페이지(/, /member, /award, /project, /qna)를 처리하는 단일 라우트. 예전 *.html 주소는 next.config.ts 에서 영구 이동.
  * - ISR: DB 에서 읽어 정적 HTML 로 캐시하고, 동기화 시 태그 무효화(SWR) + 1시간 시간 기반 안전망
  * - 빌드 시 DB 에 접근 가능하면 미리 렌더링하고, 불가능하면(Docker 빌드 등) 첫 요청 시 렌더링 후 캐시한다
  */
@@ -33,7 +33,7 @@ export default async function Page({ params }: PageProps<'/[[...slug]]'>) {
     case 'home':
       return (
         <AppShell slug="home">
-          <HomePage settings={await getSiteSettings()} />
+          <HomePage settings={await getHomeSettings()} />
         </AppShell>
       );
     case 'member':
