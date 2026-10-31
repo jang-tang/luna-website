@@ -13,6 +13,8 @@
 - 보안 검토 완료 (REPORT.md J 절) — 관리자 액션 인증, DNS 리바인딩 차단, CSP/HSTS, 포트 바인딩 수정
 - 검사: lint ✅ typecheck ✅ vitest 38 ✅ playwright 38 ✅ build(DB 유/무) ✅, DB 장애 시 서비스 유지 ✅
 
+- **Vercel 배포 완료**: <https://luna-website-xi.vercel.app> (Neon DB, 운영 전체 동기화 272건 확인)
+
 ## 남은 일
 
 1. 운영 서버 배포 + 비밀값 설정 (로컬 Docker(colima) 에서는 전체 검증 완료)
