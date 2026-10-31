@@ -1,0 +1,60 @@
+# 단일 서버 배포/로컬 통합 실행용.
+#   cp .env.example .env  (값 채우기, POSTGRES_PASSWORD 포함)
+#   docker compose up -d --build
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: luna
+      POSTGRES_USER: luna
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U luna -d luna"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # 스키마 마이그레이션 (재실행 안전, 1회 실행 후 종료)
+  migrate:
+    build: { context: ., target: worker }
+    image: ${WORKER_IMAGE:-luna-worker}
+    command: ["node", "dist/scripts/db-migrate.js"]
+    env_file: ${ENV_FILE:-.env}
+    environment:
+      DATABASE_URL: postgres://luna:${POSTGRES_PASSWORD}@db:5432/luna
+      DATABASE_SSL: disable
+    depends_on:
+      db: { condition: service_healthy }
+    restart: "no"
+
+  app:
+    build: { context: ., target: app }
+    image: ${APP_IMAGE:-luna-app}
+    restart: unless-stopped
+    env_file: ${ENV_FILE:-.env}
+    environment:
+      DATABASE_URL: postgres://luna:${POSTGRES_PASSWORD}@db:5432/luna
+      DATABASE_SSL: disable
+    ports:
+      - "${APP_PORT:-3000}:3000"
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+
+  # Notion → DB 정기 동기화 (SYNC_INTERVAL_MINUTES, 기본 15분) + 앱 캐시 무효화 요청
+  scheduler:
+    image: ${WORKER_IMAGE:-luna-worker}
+    restart: unless-stopped
+    env_file: ${ENV_FILE:-.env}
+    environment:
+      DATABASE_URL: postgres://luna:${POSTGRES_PASSWORD}@db:5432/luna
+      DATABASE_SSL: disable
+      APP_URL: http://app:3000
+    depends_on:
+      migrate: { condition: service_completed_successfully }
+      app: { condition: service_healthy }
+
+volumes:
+  pgdata:

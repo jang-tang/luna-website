@@ -1,0 +1,18 @@
+# 기존 운영 환경(Traefik 리버스 프록시, 외부 네트워크 'proxy')용 오버라이드.
+#   docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
+services:
+  app:
+    ports: !reset []
+    networks: [default, proxy]
+    labels:
+      traefik.enable: "true"
+      traefik.http.routers.luna.entrypoints: https
+      traefik.http.routers.luna.rule: Host(`${SITE_HOST:?SITE_HOST is required}`)
+      traefik.http.routers.luna.tls: "true"
+      traefik.http.routers.luna.tls.certresolver: cloudflare
+      traefik.http.routers.luna.middlewares: all-cors-headers@file,error-handler@file
+      traefik.http.services.luna.loadbalancer.server.port: "3000"
+
+networks:
+  proxy:
+    external: true

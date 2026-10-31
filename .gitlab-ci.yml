@@ -7,6 +7,10 @@ stages:
   - build
   - deploy
 
+variables:
+  APP_IMAGE: $CI_REGISTRY_IMAGE/app:latest
+  WORKER_IMAGE: $CI_REGISTRY_IMAGE/worker:latest
+
 check-job:
   stage: check
   script:
@@ -16,24 +20,17 @@ build-job:
   stage: build
   script:
     - docker login -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN $CI_REGISTRY
-    - docker build -t $CI_REGISTRY_IMAGE .
-    - docker push $CI_REGISTRY_IMAGE
+    - docker build --target app -t $APP_IMAGE .
+    - docker build --target worker -t $WORKER_IMAGE .
+    - docker push $APP_IMAGE
+    - docker push $WORKER_IMAGE
 
+# 운영 비밀값은 GitLab CI/CD 의 File 타입 변수 LUNA_ENV_FILE(.env 내용, POSTGRES_PASSWORD 포함)로 주입한다.
 deploy-job:
   stage: deploy
   script:
-    - docker rm -f $CI_PROJECT_PATH_SLUG
-    - >
-      docker run -d
-      --name $CI_PROJECT_PATH_SLUG
-      --restart always
-      --label traefik.enable=true
-      --label traefik.http.routers.$CI_PROJECT_PATH_SLUG.entrypoints=https
-      --label traefik.http.routers.$CI_PROJECT_PATH_SLUG.rule='Host(`luna.codes`)'
-      --label traefik.http.routers.$CI_PROJECT_PATH_SLUG.tls=true
-      --label traefik.http.routers.$CI_PROJECT_PATH_SLUG.tls.certresolver=cloudflare
-      --label traefik.http.routers.$CI_PROJECT_PATH_SLUG.service=$CI_PROJECT_PATH_SLUG
-      --label traefik.http.routers.$CI_PROJECT_PATH_SLUG.middlewares=all-cors-headers@file,error-handler@file
-      --label traefik.http.services.$CI_PROJECT_PATH_SLUG.loadbalancer.server.port=80
-      --network proxy
-      $CI_REGISTRY_IMAGE:latest
+    - docker login -u $CI_REGISTRY_USER -p $CI_JOB_TOKEN $CI_REGISTRY
+    - cp "$LUNA_ENV_FILE" .env
+    - docker compose -p luna -f docker-compose.yml -f docker-compose.traefik.yml pull app scheduler migrate
+    - docker compose -p luna -f docker-compose.yml -f docker-compose.traefik.yml up -d --no-build
+    - rm -f .env

@@ -1,5 +1,19 @@
 .git
-.gitignore
 .gitlab-ci.yml
 .dockerignore
 Dockerfile
+docker-compose*.yml
+node_modules
+.next
+dist
+.pglite
+test-results
+playwright-report
+.env
+.env.*
+!.env.example
+.notion-bootstrap.json
+# 원본 콘텐츠 이미지(시드/부트스트랩 전용)는 운영 이미지에 포함하지 않는다
+content/seed/images
+.idea
+.DS_Store

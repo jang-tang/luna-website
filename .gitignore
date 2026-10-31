@@ -1,0 +1,23 @@
+# dependencies
+node_modules/
+
+# next.js
+.next/
+out/
+next-env.d.ts
+*.tsbuildinfo
+
+# env — real secrets never get committed (.env.example is the template)
+.env
+.env.*
+!.env.example
+
+# local data / tooling output
+.pglite/
+test-results/
+playwright-report/
+perf/raw/
+.DS_Store
+.idea/workspace.xml
+.notion-bootstrap.json
+dist/

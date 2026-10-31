@@ -1,0 +1,62 @@
+{
+  "name": "luna-landing",
+  "version": "2.0.0",
+  "private": true,
+  "description": "세상을 비추는 달, LUNA — 한국디지털미디어고등학교 IT 소셜벤처 동아리 웹사이트",
+  "engines": {
+    "node": ">=20.9"
+  },
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:e2e": "playwright test",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "tsx scripts/db-migrate.ts",
+    "db:seed": "tsx scripts/db-seed.ts",
+    "sync": "tsx scripts/sync-notion.ts",
+    "sync:status": "tsx scripts/sync-status.ts",
+    "notion:discover": "tsx scripts/notion-discover.ts",
+    "notion:bootstrap": "tsx scripts/notion-bootstrap.ts",
+    "scheduler": "tsx scripts/scheduler.ts",
+    "db:dev": "tsx scripts/dev-db.ts",
+    "build:scripts": "esbuild scripts/scheduler.ts scripts/db-migrate.ts scripts/sync-notion.ts scripts/sync-status.ts --bundle --platform=node --target=node22 --format=cjs --outdir=dist/scripts --external:sharp --log-level=warning",
+    "visual:compare": "tsx scripts/visual/compare.ts"
+  },
+  "dependencies": {
+    "@next/env": "^16.4.3",
+    "@splinetool/loader": "^0.9.214",
+    "drizzle-orm": "^0.45.4",
+    "next": "^16.4.3",
+    "postgres": "^4.0.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "server-only": "^0.0.1",
+    "sharp": "^0.35.5",
+    "three": "^0.142.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "^0.5.13",
+    "@electric-sql/pglite-socket": "^0.2.16",
+    "@playwright/test": "^1.64.1",
+    "@types/node": "^22.20.5",
+    "@types/pngjs": "^6.0.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@types/three": "^0.142.0",
+    "drizzle-kit": "^0.31.11",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.14.0",
+    "eslint-config-next": "^16.4.3",
+    "pixelmatch": "^7.2.0",
+    "pngjs": "^7.0.0",
+    "sass": "^1.107.1",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3",
+    "vitest": "^5.0.5"
+  }
+}
