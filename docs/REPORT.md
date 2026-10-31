@@ -1,6 +1,6 @@
 # LUNA 웹사이트 구축·리팩터링 완료 보고서
 
-작성일: 2026-10-31 · 브랜치: `feat/react-notion-db` (원본: `LUNA-coding/luna-landing` @ `0e83cfa`)
+작성일: 2026-10-31 · 저장소: https://github.com/jang-tang/luna-website (`main`) · 원본: `LUNA-coding/luna-landing` @ `0e83cfa`
 
 ---
 

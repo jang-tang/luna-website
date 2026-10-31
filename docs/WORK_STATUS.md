@@ -1,6 +1,6 @@
 # 작업 현황 (2026-10-31 기준)
 
-브랜치: `feat/react-notion-db` — **아직 커밋하지 않음**
+저장소: https://github.com/jang-tang/luna-website (`main`) · 원본: `upstream` = LUNA-coding/luna-landing
 최종 보고서: [docs/REPORT.md](REPORT.md) · 실행 방법: [README.md](../README.md)
 
 ## 완료
@@ -14,9 +14,8 @@
 
 ## 남은 일
 
-1. 커밋 (사용자 확인 후). `.env`, `.env.local`, `.notion-bootstrap.json` 은 gitignore 됨
-2. 운영 서버 배포 + 비밀값 설정 (로컬 Docker(colima) 에서는 전체 검증 완료)
-3. 새 도메인 결정 후 `SITE_URL`/`SITE_HOST` 설정 — `luna.codes` 는 탈취되어 사용 금지
+1. 운영 서버 배포 + 비밀값 설정 (로컬 Docker(colima) 에서는 전체 검증 완료)
+2. 새 도메인 결정 후 `SITE_URL`/`SITE_HOST` 설정 — `luna.codes` 는 탈취되어 사용 금지
 
 ## 로컬 환경 메모
 
