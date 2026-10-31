@@ -27,3 +27,5 @@ AGENTS.md
 
 # Vercel CLI 로컬 연결 정보
 .vercel/
+.vercel
+.env*

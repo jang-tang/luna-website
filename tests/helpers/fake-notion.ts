@@ -42,6 +42,8 @@ export class FakeNotion {
   stores = new Map<string, Store>();
   failingQueries = new Set<string>();
   failingImages = new Set<string>();
+  /** 200 으로 응답하지만 이미지가 아닌 데이터 (변환 불가 형식 흉내) */
+  brokenImages = new Set<string>();
   imageDownloads = 0;
   requests: string[] = [];
   pageSize = 3; // 작은 페이지 크기로 페이지네이션 경로를 항상 거치게 한다
@@ -88,6 +90,10 @@ export class FakeNotion {
     if (url.hostname === 'files.example.com') {
       const key = url.pathname.slice(1).replace('.png', '');
       if (this.failingImages.has(key)) return new Response('nope', { status: 500 });
+      if (this.brokenImages.has(key)) {
+        this.imageDownloads++;
+        return new Response('not really an image', { headers: { 'content-type': 'image/heic' } });
+      }
       this.imageDownloads++;
       const seed = [...key].reduce((a, c) => a + c.charCodeAt(0), 0);
       const img = await sharp({ create: { width: 400, height: 300, channels: 3, background: { r: seed % 255, g: (seed * 7) % 255, b: (seed * 13) % 255 } } }).png().toBuffer();

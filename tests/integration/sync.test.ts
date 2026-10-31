@@ -235,6 +235,31 @@ describe('Notion → DB 동기화', () => {
     expect(row.imageSourceKey).toContain('m-new');
   });
 
+  it('변환할 수 없는 사진(HEIC 등)은 한 번만 시도하고, 사진을 바꾸기 전까지 다시 받지 않는다', async () => {
+    notion.brokenImages.add('m-heic');
+    const id = notion.addPage(MEMBERS, { ...member('사진불가', 'LUNA 7기', 1), image: P.file('m-heic') });
+    let result = await sync();
+    expect(result.status).toBe('partial');
+    expect(result.errors.some((e) => e.message.includes('unsupported image format'))).toBe(true);
+    let row = (await db.select().from(members))[0]!;
+    expect(row.imageId).toBeNull();
+    expect(row.contentHash).not.toBeNull();
+    const downloads = notion.imageDownloads;
+
+    invalidated = [];
+    result = await sync();
+    expect(result.status).toBe('success');
+    expect(result.stats.members).toMatchObject({ updated: 0, unchanged: 1 });
+    expect(notion.imageDownloads).toBe(downloads);
+    expect(invalidated).toEqual([]);
+
+    // 노션에서 정상 사진으로 바꾸면 다시 처리된다
+    notion.updatePage(MEMBERS, id, { image: P.file('m-fixed') });
+    result = await sync();
+    row = (await db.select().from(members))[0]!;
+    expect(row.imageId).not.toBeNull();
+  });
+
   it('동시에 실행하면 하나만 수행되고 나머지는 skipped (중복 실행 방지)', async () => {
     for (let i = 0; i < 4; i++) notion.addPage(MEMBERS, member(`M${i}`, 'LUNA 7기', i));
     const [a, b] = await Promise.all([sync(), sync()]);

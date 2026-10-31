@@ -8,7 +8,7 @@ import { awards, media, memberGroups, members, projects, syncState, type Collect
 import * as repo from '@/services/database/sync-repository';
 import type { NotionClient } from './client';
 import { COLLECTION_ORDER, COLLECTIONS, PROPS, type CollectionDef } from './collections';
-import { downloadImage, processImage } from './images';
+import { downloadImage, ImageError, processImage } from './images';
 import { PropertyError, truncatedTextProperties } from './properties';
 import type { NotionPage, RichText } from './types';
 
@@ -227,11 +227,16 @@ async function syncCollection(deps: SyncDeps, def: CollectionDef, dataSourceId: 
           imageId = await storeImage(db, transformed.image.url, transformed.image.sourceKey, def, deps.fetchImpl, deps.lookupImpl);
           imageSourceKey = transformed.image.sourceKey;
         } catch (err) {
-          // 일시적 실패: 기존 이미지를 유지하고, 해시를 비워 다음 실행에서 재시도. 커서도 이 페이지 이전으로 묶어둔다.
           imageId = prev?.imageId ?? null;
           imageSourceKey = prev?.imageSourceKey ?? null;
-          storedHash = null;
-          holdCursorAt.push(new Date(page.last_edited_time));
+          if (err instanceof ImageError && err.permanent) {
+            // 영구 실패(형식 미지원 등): 같은 파일로는 계속 실패하므로 재시도하지 않는다.
+            // 해시를 그대로 저장해 두면 다음 실행부터는 건너뛰고, 노션에서 사진을 바꿀 때(소스 키 변경)만 다시 처리된다.
+          } else {
+            // 일시적 실패(네트워크 등): 기존 이미지를 유지하고, 해시를 비워 다음 실행에서 재시도. 커서도 이 페이지 이전으로 묶어둔다.
+            storedHash = null;
+            holdCursorAt.push(new Date(page.last_edited_time));
+          }
           runErrors.push({ collection: def.key, pageId: page.id, message: `image: ${errorMessage(err)}` });
         }
       }

@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
-import sharp, { type Sharp } from 'sharp';
+import sharp, { type OutputInfo, type Sharp } from 'sharp';
 import type { ImageVariant } from './collections';
 
 /**
@@ -22,7 +22,17 @@ export type ProcessedImage = {
   data: Buffer;
 };
 
-export class ImageError extends Error {}
+export class ImageError extends Error {
+  /** true 면 같은 파일로 다시 시도해도 결과가 같다 (형식 미지원·크기 초과·차단된 주소 등) */
+  readonly permanent: boolean;
+
+  constructor(message: string, options: { permanent?: boolean } = {}) {
+    super(message);
+    this.permanent = options.permanent ?? false;
+  }
+}
+
+const permanent = { permanent: true } as const;
 
 /** 사설망·루프백·링크로컬·메타데이터 주소인지 (IPv4 / IPv6, IPv4-mapped 포함) */
 export function isPrivateAddress(ip: string): boolean {
@@ -37,10 +47,10 @@ export function isPrivateAddress(ip: string): boolean {
 /** 사설망/로컬 주소로의 요청 차단 (외부 URL 이미지 속성을 통한 SSRF 방지) — 문자열 단계 검사 */
 export function assertPublicHttpUrl(raw: string): URL {
   const url = new URL(raw);
-  if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new ImageError('unsupported protocol');
+  if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new ImageError('unsupported protocol', permanent);
   const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
   if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.internal') || host.endsWith('.local') || isPrivateAddress(host)) {
-    throw new ImageError('private address not allowed');
+    throw new ImageError('private address not allowed', permanent);
   }
   return url;
 }
@@ -52,7 +62,7 @@ async function assertResolvesPublic(url: URL, resolve: typeof lookup) {
   const addresses = await resolve(host, { all: true }).catch(() => {
     throw new ImageError('dns lookup failed');
   });
-  if (addresses.length === 0 || addresses.some((a) => isPrivateAddress(a.address))) throw new ImageError('private address not allowed');
+  if (addresses.length === 0 || addresses.some((a) => isPrivateAddress(a.address))) throw new ImageError('private address not allowed', permanent);
 }
 
 export async function downloadImage(rawUrl: string, fetchImpl: typeof fetch = fetch, resolve: typeof lookup = lookup): Promise<Buffer> {
@@ -71,7 +81,7 @@ export async function downloadImage(rawUrl: string, fetchImpl: typeof fetch = fe
     }
     if (!res.ok || !res.body) throw new ImageError(`download failed (${res.status})`);
     const declared = Number(res.headers.get('content-length'));
-    if (declared > MAX_DOWNLOAD_BYTES) throw new ImageError('file too large');
+    if (declared > MAX_DOWNLOAD_BYTES) throw new ImageError('file too large', permanent);
     const chunks: Uint8Array[] = [];
     let total = 0;
     const reader = res.body.getReader();
@@ -81,7 +91,7 @@ export async function downloadImage(rawUrl: string, fetchImpl: typeof fetch = fe
       total += value.byteLength;
       if (total > MAX_DOWNLOAD_BYTES) {
         await reader.cancel();
-        throw new ImageError('file too large');
+        throw new ImageError('file too large', permanent);
       }
       chunks.push(value);
     }
@@ -100,15 +110,22 @@ export async function processImage(input: Buffer, variant: ImageVariant): Promis
     // limitInputPixels: 압축 폭탄 방지 (약 1억 픽셀)
     pipeline = sharp(input, { limitInputPixels: 100_000_000, failOn: 'error' }).rotate();
     const meta = await pipeline.metadata();
-    if (!meta.width || !meta.height) throw new ImageError('not an image');
+    if (!meta.width || !meta.height) throw new ImageError('not an image', permanent);
   } catch (err) {
     if (err instanceof ImageError) throw err;
-    throw new ImageError('unsupported image format');
+    throw new ImageError('unsupported image format', permanent);
   }
-  const { data, info } = await pipeline
-    .resize({ width: variant.width, height: variant.height, fit: variant.fit, withoutEnlargement: true })
-    .webp({ quality: variant.quality, effort: 5 })
-    .toBuffer({ resolveWithObject: true });
+  let output: { data: Buffer; info: OutputInfo };
+  try {
+    output = await pipeline
+      .resize({ width: variant.width, height: variant.height, fit: variant.fit, withoutEnlargement: true })
+      .webp({ quality: variant.quality, effort: 5 })
+      .toBuffer({ resolveWithObject: true });
+  } catch {
+    // 예: 아이폰 HEIC(HEVC) — 메타데이터는 읽히지만 sharp 기본 빌드로는 디코딩할 수 없다
+    throw new ImageError('unsupported image format (JPG/PNG/WebP 로 다시 올려 주세요)', permanent);
+  }
+  const { data, info } = output;
   return {
     id: createHash('sha256').update(data).digest('hex').slice(0, 32),
     contentType: 'image/webp',
