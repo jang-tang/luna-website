@@ -314,13 +314,13 @@ cat backup-YYYYMMDD.sql | docker compose exec -T db psql -U luna luna          #
 | 자동 동기화 | 깃허브 Actions 15분마다 (`.github/workflows/notion-sync.yml`) + Vercel Cron 하루 1번 새벽 3시(예비) |
 | 관리 페이지 | <https://luna-website-xi.vercel.app/admin/sync> — 아이디·비밀번호는 `.env.vercel` 의 `ADMIN_USER`, `ADMIN_PASSWORD` |
 
-**배포하기**
+#### 배포하기
 
 - 깃허브 자동 배포가 연결되어 있으면 `git push origin main` 만으로 배포됩니다.
 - 연결 전이거나 직접 배포하려면: `npx vercel deploy --prod` (처음 한 번 `npx vercel login`)
 - 배포할 때 DB 마이그레이션이 자동으로 먼저 실행됩니다 (`vercel-build`).
 
-**환경변수 바꾸기**
+#### 환경변수 바꾸기
 
 ```bash
 npx vercel env rm NOTION_TOKEN production       # 기존 값 삭제
@@ -328,7 +328,7 @@ npx vercel env add NOTION_TOKEN production      # 새 값 입력
 npx vercel deploy --prod                         # 다시 배포해야 적용됨
 ```
 
-**주의**
+#### 주의
 
 - 무료(Hobby) 요금제의 Vercel Cron 은 하루 1번까지라 15분 동기화는 깃허브 Actions 가 담당합니다.
 - 깃허브는 저장소에 60일간 활동이 없으면 정기 실행을 멈춥니다 → 깃허브 저장소의 Actions 탭에서 다시 켜세요.
