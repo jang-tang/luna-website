@@ -1,6 +1,6 @@
 # 작업 현황 (2026-10-31 기준)
 
-저장소: https://github.com/jang-tang/luna-website (`main`) · 원본: `upstream` = LUNA-coding/luna-landing
+저장소: <https://github.com/jang-tang/luna-website> (`main`) · 원본: `upstream` = LUNA-coding/luna-landing
 최종 보고서: [docs/REPORT.md](REPORT.md) · 실행 방법: [README.md](../README.md)
 
 ## 완료

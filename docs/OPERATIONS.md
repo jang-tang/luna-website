@@ -7,7 +7,7 @@
 
 ## 0. 한눈에 보기
 
-```
+```text
 Notion(콘텐츠 수정) ──15분마다──▶ DB(PostgreSQL) ──▶ 웹사이트
 ```
 
@@ -16,7 +16,7 @@ Notion(콘텐츠 수정) ──15분마다──▶ DB(PostgreSQL) ──▶ 웹
 - 사이트는 DB 를 읽어 화면을 그립니다. Notion 이 잠시 장애여도 사이트는 마지막 데이터로 계속 동작합니다.
 
 | 하고 싶은 일 | 바로 가기 |
-|---|---|
+| --- | --- |
 | 내 컴퓨터에서 사이트 띄워보기 | [1. 로컬 실행](#1-로컬에서-실행하기) |
 | 멤버/업적/프로젝트/Q&A 수정 | [2. 콘텐츠 관리](#2-콘텐츠-관리-notion) |
 | 동기화 상태 확인, 바로 반영 | [3. 동기화 확인·수동 실행](#3-동기화-확인과-수동-실행) |
@@ -40,7 +40,7 @@ npm install
 **환경변수 파일** — 이 컴퓨터에는 이미 만들어져 있습니다.
 
 | 파일 | 용도 | 내용 |
-|---|---|---|
+| --- | --- | --- |
 | `.env` | 공통 | `NOTION_TOKEN`, Notion 데이터베이스 ID 5개 |
 | `.env.local` | 로컬 개발 | DB 주소, `SYNC_SECRET`, 관리자 계정 등 |
 | `.env.docker` | 로컬 Docker 테스트 | 위 값 + Docker 용 비밀번호 |
@@ -69,7 +69,7 @@ npm run sync -- --full
 npm run dev 
 ```
 
-브라우저에서 http://localhost:3000 접속.
+브라우저에서 <http://localhost:3000> 접속.
 
 - 개발 DB 데이터는 `.pglite/` 폴더에 저장되어 다음에 켜도 남아 있습니다. 처음부터 다시 하고 싶으면 DB 를 끄고 `.pglite/` 폴더를 지우세요.
 - `.env.local` 에 `DATABASE_POOL_MAX=1`, `DATABASE_PREPARE=false` 가 꼭 있어야 합니다 (개발 DB 의 제약, 이미 설정됨).
@@ -92,9 +92,10 @@ docker compose --env-file .env.docker up -d --build  # 빌드 + 실행 (첫 빌�
 docker compose --env-file .env.docker ps             # 상태 확인
 ```
 
-- 스케줄러가 켜지자마자 Notion 동기화를 시작합니다 (약 45초). 그 뒤 http://localhost:3000 접속.
+- 스케줄러가 켜지자마자 Notion 동기화를 시작합니다 (약 45초). 그 뒤 <http://localhost:3000> 접속.
 - 로그 보기: `docker compose --env-file .env.docker logs -f scheduler` (또는 `app`)
 - 끄기:
+
   ```bash
   docker compose --env-file .env.docker down        # 컨테이너 종료 (DB 데이터는 유지)
   docker compose --env-file .env.docker down -v     # DB 데이터까지 삭제
@@ -105,7 +106,7 @@ docker compose --env-file .env.docker ps             # 상태 확인
 
 ### 1-4. 관리 페이지
 
-http://localhost:3000/admin/sync — 아이디/비밀번호는 `.env.local`(방법 B 는 `.env.docker`)의 `ADMIN_USER`, `ADMIN_PASSWORD`.
+<http://localhost:3000/admin/sync> — 아이디/비밀번호는 `.env.local`(방법 B 는 `.env.docker`)의 `ADMIN_USER`, `ADMIN_PASSWORD`.
 동기화 상태, 최근 실행 기록, 오류, **수동 동기화 버튼**이 있습니다.
 
 ---
@@ -116,7 +117,7 @@ http://localhost:3000/admin/sync — 아이디/비밀번호는 `.env.local`(방�
 지금은 그 데이터베이스를 개인 워크스페이스 **`메모장` 아래로 복사한 것**에 연결되어 있습니다 (원래 노션으로 바꾸는 방법은 2-1).
 
 | 데이터베이스 | 사이트 위치 | 사용하는 열 |
-|---|---|---|
+| --- | --- | --- |
 | Members (1) | 멤버 페이지 | name, lunaGeneration(탭), generation·class(소속 표시), position, description, image |
 | Awards (1) | 업적 페이지 | name, year(연도 탭), prize, team, members, date, image |
 | Projects (1) | 프로젝트 페이지 | name, year(연도 탭), description, image (awards 는 저장만 하고 화면에는 표시 안 함) |
@@ -126,7 +127,7 @@ http://localhost:3000/admin/sync — 아이디/비밀번호는 `.env.local`(방�
 ### 이렇게 하면 됩니다
 
 | 하고 싶은 일 | Notion 에서 할 일 |
-|---|---|
+| --- | --- |
 | 새 멤버/업적/프로젝트 추가 | 해당 데이터베이스에 새 행 추가 (기본적으로 바로 공개됨) |
 | 내용 수정 | 해당 행을 그냥 수정 |
 | 잠깐 숨기기 | 데이터베이스에 체크박스 열 `published` 를 만들고, 숨길 행만 체크 해제 (열이 없으면 전부 공개) |
@@ -158,19 +159,25 @@ DIMIGO LUNA 관리자에게 'API 토큰' 방식 연결을 받았다면, **토큰
 1. 관리자가 'Notion API' 페이지 → 점 세 개 → 연결 → 새 연결을 추가했는지 확인
 2. `.env` 의 `NOTION_TOKEN` 을 새 토큰으로 교체
 3. 데이터베이스 ID 찾기:
+
    ```bash
    npm run notion:discover
    ```
+
    출력된 `NOTION_MEMBERS_…`, `NOTION_AWARDS_…`, `NOTION_PROJECTS_…`, `NOTION_QNA_…` 4줄을 `.env` 에 반영
 4. 사이트 설정: 새 토큰은 개인 워크스페이스의 'LUNA 사이트 설정' 을 볼 수 없습니다. `.env` 의 `NOTION_SETTINGS_DATA_SOURCE_ID` 를 비운 뒤, 루나 노션의 'Notion API' 페이지 아래에 새로 만드세요:
+
    ```bash
    npm run notion:create-settings -- --parent <'Notion API' 페이지 주소> --write-env
    ```
+
    (만들지 않고 비워 두면 원본 기본값을 씁니다)
 5. 전체 동기화:
+
    ```bash
    npm run sync -- --full
    ```
+
    복사본에서 가져온 행은 자동으로 정리되고 원본 데이터로 교체됩니다.
 6. 운영 서버를 쓰고 있다면 서버의 `.env` 도 똑같이 바꾸고 `docker compose up -d` (스케줄러가 다음 주기에 동기화)
 
@@ -179,7 +186,7 @@ DIMIGO LUNA 관리자에게 'API 토큰' 방식 연결을 받았다면, **토큰
 ## 3. 동기화 확인과 수동 실행
 
 | 방법 | 명령/주소 |
-|---|---|
+| --- | --- |
 | 상태 보기 (터미널) | `npm run sync:status` |
 | 상태 보기 (브라우저) | `/admin/sync` |
 | 바로 반영 (변경분만) | `npm run sync` 또는 관리 페이지 "증분 동기화 실행" |
@@ -238,7 +245,7 @@ npm run visual:compare -- <기준 캡처 폴더> /tmp/shots-new /tmp/shots-diff
 서버의 프로젝트 폴더에 `.env` 를 만듭니다 (`.env.example` 참고). **이 파일은 git 에 올리지 마세요.**
 
 | 변수 | 값 |
-|---|---|
+| --- | --- |
 | `POSTGRES_PASSWORD` | 새로 생성 (`openssl rand -hex 16`) |
 | `NOTION_TOKEN` | 로컬 `.env` 와 같은 값 |
 | `NOTION_*_DATA_SOURCE_ID` (5개) | 로컬 `.env` 와 같은 값 |
@@ -306,7 +313,7 @@ cat backup-YYYYMMDD.sql | docker compose exec -T db psql -U luna luna          #
 ## 6. 문제 해결
 
 | 증상 | 확인할 것 |
-|---|---|
+| --- | --- |
 | Notion 을 고쳤는데 사이트에 안 나옴 | 15분 기다리거나 수동 동기화(3). 그래도 안 되면 `npm run sync:status` 의 오류 칸 확인 (필수값 누락, 속성 이름 변경 등) |
 | 동기화가 계속 `failed` | Notion 통합(new_site)에 데이터베이스가 공유되어 있는지, `NOTION_TOKEN` 이 유효한지 확인 |
 | `skipped` 만 계속 나옴 | 다른 동기화가 실행 중. 프로세스가 죽은 경우 15분 뒤 자동 해제 |

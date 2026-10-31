@@ -1,0 +1,52 @@
+# Notion → DB 정기 동기화 (15분마다)
+# Vercel 무료 요금제의 Cron 은 하루 1번까지라, GitHub Actions 의 무료 정기 실행으로 사이트의 동기화 주소를 호출한다.
+#
+# 필요한 저장소 Secrets (Settings → Secrets and variables → Actions):
+#   SYNC_URL    : 배포된 사이트 주소 (예: https://luna-website.vercel.app)
+#   SYNC_SECRET : Vercel 환경변수 SYNC_SECRET 과 같은 값
+#
+# 참고: GitHub 는 저장소에 60일 동안 활동이 없으면 정기 실행을 자동으로 멈춘다 (Actions 탭에서 다시 켤 수 있음).
+name: Notion sync
+
+on:
+  schedule:
+    - cron: '*/15 * * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: '동기화 방식 (auto = 변경분만, full = 전체)'
+        required: false
+        default: auto
+        type: choice
+        options: [auto, full]
+
+concurrency:
+  group: notion-sync
+  cancel-in-progress: false
+
+permissions: {}
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Call sync endpoint
+        env:
+          SYNC_URL: ${{ secrets.SYNC_URL }}
+          SYNC_SECRET: ${{ secrets.SYNC_SECRET }}
+          MODE: ${{ inputs.mode || 'auto' }}
+        run: |
+          if [ -z "$SYNC_URL" ] || [ -z "$SYNC_SECRET" ]; then
+            echo "SYNC_URL / SYNC_SECRET 저장소 Secrets 가 설정되지 않았습니다." >&2
+            exit 1
+          fi
+          status=$(curl -sS -o response.json -w '%{http_code}' --max-time 330 \
+            -X POST "${SYNC_URL%/}/api/cron/sync?mode=${MODE}" \
+            -H "Authorization: Bearer ${SYNC_SECRET}")
+          # 응답에는 비밀값이 없지만, 너무 길지 않게 요약만 출력
+          node -e "const r=require('./response.json');const d=r.data||{};console.log(JSON.stringify({ok:r.ok,status:d.status,changed:d.changed,errors:(d.errors||[]).length,durationMs:d.durationMs}))" || cat response.json
+          if [ "$status" -ge 400 ]; then
+            echo "동기화 실패 (HTTP $status)" >&2
+            exit 1
+          fi

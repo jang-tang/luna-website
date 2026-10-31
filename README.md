@@ -3,7 +3,7 @@
 한국디지털미디어고등학교 IT 소셜벤처 동아리 LUNA 의 웹사이트입니다.
 콘텐츠는 **Notion** 에서 관리하고, 일정 주기로 **PostgreSQL** 에 동기화한 뒤 **Next.js(React)** 가 DB 에서 읽어 화면을 렌더링합니다.
 
-```
+```text
 Notion (원본) ──(15분마다 동기화)──▶ PostgreSQL ──▶ Next.js (ISR 캐시) ──▶ 방문자
                  scheduler / cron                    동기화 시 캐시 무효화(SWR)
 ```
@@ -15,7 +15,7 @@ Notion (원본) ──(15분마다 동기화)──▶ PostgreSQL ──▶ Next
 ## 기술 스택
 
 | 영역 | 사용 기술 |
-|---|---|
+| --- | --- |
 | 프론트엔드 | Next.js 16 (App Router), React 19, TypeScript, SCSS(원본 스타일 그대로) |
 | DB | PostgreSQL 17, Drizzle ORM, postgres.js |
 | 콘텐츠 원본 | Notion API (`Notion-Version: 2026-03-11`, data source query) |
@@ -28,7 +28,7 @@ Notion (원본) ──(15분마다 동기화)──▶ PostgreSQL ──▶ Next
 DIMIGO LUNA 'Notion API' 페이지의 데이터베이스(Members / Awards / Projects / FAQ)와 같은 구조를 읽습니다. 현재는 그 복사본(개인 워크스페이스 `메모장` 아래)에 연결되어 있으며, 원래 노션으로 바꾸는 방법은 [docs/OPERATIONS.md 2-1](docs/OPERATIONS.md) 을 참고하세요.
 
 | 데이터베이스 | 화면 | 사용하는 열 |
-|---|---|---|
+| --- | --- | --- |
 | Members | /member | name, lunaGeneration(탭: 최신 기수부터), generation + class(소속), position, description, image |
 | Awards | /award | name, year(연도 탭), prize, team, members(다중 선택), date(날짜 → "…하루동안" 문구), image |
 | Projects | /project | name, year, description, image, awards |
@@ -59,7 +59,7 @@ npm run dev                     # http://localhost:3000
 ## 명령어
 
 | 명령 | 설명 |
-|---|---|
+| --- | --- |
 | `npm run dev` / `build` / `start` | 개발 서버 / 프로덕션 빌드 / 실행 |
 | `npm run lint` / `typecheck` | ESLint / TypeScript 검사 |
 | `npm test` | 단위 + 통합 테스트 (실제 PostgreSQL 엔진(PGlite) + 가짜 Notion API) |
@@ -79,7 +79,7 @@ npm run dev                     # http://localhost:3000
 전체 목록과 설명은 [.env.example](.env.example) 참고. 실제 값은 `.env`/`.env.local`(git 제외) 또는 배포 플랫폼의 Secret 에만 넣습니다.
 
 | 변수 | 필수 | 설명 |
-|---|---|---|
+| --- | --- | --- |
 | `DATABASE_URL` | ✅ | PostgreSQL 연결 문자열 |
 | `NOTION_TOKEN` | 동기화 시 | Notion 통합 토큰 (서버 전용) |
 | `NOTION_*_DATA_SOURCE_ID` | 동기화 시 | 컬렉션별 데이터 소스 ID. 비어 있는 컬렉션은 동기화하지 않음 |

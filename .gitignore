@@ -24,3 +24,6 @@ dist/
 
 # Next.js 개발 서버가 자동 생성하는 AI 에이전트용 파일
 AGENTS.md
+
+# Vercel CLI 로컬 연결 정보
+.vercel/

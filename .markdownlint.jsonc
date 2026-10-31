@@ -1,0 +1,8 @@
+// 문서(Markdown) 서식 검사 설정 — VS Code markdownlint 확장과 markdownlint-cli2 가 함께 사용
+{
+  "default": true,
+  // 한국어 설명 문장이 길어 80자 줄 길이 제한은 적용하지 않는다
+  "MD013": false,
+  // 표는 "| --- |" 처럼 칸 앞뒤를 한 칸씩 띄운다
+  "MD060": { "style": "compact" }
+}

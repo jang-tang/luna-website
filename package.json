@@ -24,7 +24,8 @@
     "db:dev": "tsx scripts/dev-db.ts",
     "build:scripts": "esbuild scripts/scheduler.ts scripts/db-migrate.ts scripts/sync-notion.ts scripts/sync-status.ts --bundle --platform=node --target=node22 --format=cjs --outdir=dist/scripts --external:sharp --log-level=warning",
     "visual:compare": "tsx scripts/visual/compare.ts",
-    "notion:create-settings": "tsx scripts/notion-create-settings.ts"
+    "notion:create-settings": "tsx scripts/notion-create-settings.ts",
+    "vercel-build": "tsx scripts/db-migrate.ts && next build"
   },
   "dependencies": {
     "@next/env": "^16.4.3",
@@ -57,6 +58,7 @@
     "sass": "^1.107.1",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",
+    "vercel": "^65.9.0",
     "vitest": "^5.0.5"
   }
 }

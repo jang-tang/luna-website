@@ -1,24 +1,27 @@
 # LUNA 웹사이트 구축·리팩터링 완료 보고서
 
-작성일: 2026-10-31 · 저장소: https://github.com/jang-tang/luna-website (`main`) · 원본: `LUNA-coding/luna-landing` @ `0e83cfa`
+작성일: 2026-10-31 · 저장소: <https://github.com/jang-tang/luna-website> (`main`) · 원본: `LUNA-coding/luna-landing` @ `0e83cfa`
 
 ---
 
 ## A. 프로젝트 변경 사항
 
 ### 기존 기술 스택 (원본)
+
 - 정적 HTML 5페이지 + SCSS(컴파일된 CSS 커밋) + jQuery 3.6, ScrollMagic 2.0.8, GSAP 2.1.3, three.js r142 + Spline 로더
 - 콘텐츠: `data/*.js` 하드코딩 (멤버 54, 업적 73, 프로젝트 48, Q&A 6) + `img/` 로컬 이미지(39MB)
 - 배포: `nginx-static` Docker 이미지, GitLab CI → Traefik (기존 도메인 `luna.codes` 는 탈취되어 더 이상 사용하지 않음)
 - 백엔드·DB·캐싱 없음. 외부 CDN `fonts.2w.vc`, `npm.2w.vc` 의존 — **현재 두 도메인 모두 DNS 가 사라져 운영 사이트는 폰트·JS 가 로드되지 않는 상태였음**
 
 ### 변경 후
+
 - **Next.js 16 (React 19, App Router) + TypeScript**, 원본 SCSS 를 그대로 사용 (선택자 1곳만 `[style='1']` → `[data-style='1']`, React 제약)
 - **PostgreSQL + Drizzle ORM**, **Notion API → DB 동기화**, ISR 캐시 + 태그 무효화
 - 배포: Docker 멀티스테이지(app / worker) + docker-compose(db, migrate, app, scheduler), Vercel Cron 대안
 
 ### 주요 파일
-```
+
+```text
 src/
   app/[[...slug]]/page.tsx      모든 기존 URL 처리 (ISR)
   app/api/{cron/sync,revalidate,sync/status,health}/route.ts
@@ -41,6 +44,7 @@ Dockerfile · docker-compose.yml · docker-compose.traefik.yml · .gitlab-ci.yml
 ```
 
 ### 제거/수정된 기존 기능
+
 - 제거: `*.html` 5개, `js/utils.*.js`, `css/style.css(.map)` (git 이력에 보존). 기능은 React 로 동일하게 재구현
 - 이동: `data/*.js` → `content/seed/` (시드/부트스트랩 원본), 콘텐츠 이미지 → `content/seed/images/`, 디자인 자산 → `public/`
 - 정적 이미지 PNG → WebP(표시 크기 2배), SUIT 폰트 자체 호스팅(unicode-range 분할)
@@ -55,7 +59,7 @@ Dockerfile · docker-compose.yml · docker-compose.traefik.yml · .gitlab-ci.yml
 - **Notion 에서 동기화된 데이터로 렌더링한 최종 결과**:
 
 | 화면 | 데스크톱 | 태블릿 | 모바일 |
-|---|---|---|---|
+| --- | --- | --- | --- |
 | 홈 | 레이아웃 차이 0 | 0 | 23 (아래 ①) |
 | 멤버 | 0 | 0 | 0 |
 | 업적 | 0 | 0 | 0 |
@@ -67,6 +71,7 @@ Dockerfile · docker-compose.yml · docker-compose.traefik.yml · .gitlab-ci.yml
 - 인터랙션(E2E 로 검증): 탭 전환, Q&A 아코디언, "스크롤하여 더 알아보기" 부드러운 스크롤, 멤버/프로젝트 내비게이션 glass 전환, 홈 태그·업적 이미지 스크롤 패럴랙스, 3D 모델 마우스 회전, 750px 이하 스케일링
 
 ### 시각적으로 달라진 항목과 이유
+
 1. 모바일 홈 태그 줄: **페이지를 끝까지 내렸다가 맨 위로 돌아온 경우에만** ±26px 위치 차이. 원본 ScrollMagic 이 body 축소 상태에서 스케일된 좌표와 스크롤 좌표를 섞어 100ms 마다 캐시하는 동작 차이이며, 첫 로드 상태는 동일
 2. 폰트: 원본 운영 사이트는 CDN 소멸로 SUIT 대신 기본 폰트가 표시되고 있었음 → 원본 설계대로 SUIT 표시 (`font-display: swap`)
 3. 3D 모델이 페이지 load 직후(유휴 시간)에 나타남 — 원본도 CDN 모듈 로딩 후 표시되던 것과 같은 흐름
@@ -80,8 +85,9 @@ Dockerfile · docker-compose.yml · docker-compose.traefik.yml · .gitlab-ci.yml
 - ORM: 기존 프로젝트에 없어 경량 **Drizzle**(SQL 친화, 마이그레이션 파일 생성) 도입
 
 ### 테이블
+
 | 테이블 | 용도 | 주요 컬럼 |
-|---|---|---|
+| --- | --- | --- |
 | members | 멤버 | name, generation, position, class_name, description, image_id |
 | member_groups | 탭(기수) 순서 | name, sort_order (Notion select 옵션 순서) |
 | awards | 업적 | year, name, prize, team, members, date_text, image_id |
@@ -106,7 +112,7 @@ Dockerfile · docker-compose.yml · docker-compose.traefik.yml · .gitlab-ci.yml
 - **연결 대상**: DIMIGO LUNA 'Notion API' 페이지의 Members(75) · Awards(114) · Projects(72) · FAQ(6) 데이터베이스와 같은 구조. 현재 토큰은 개인 워크스페이스 소속이라 그 복사본(`메모장` 아래)에 연결되어 있고, 원래 노션 토큰을 받으면 토큰 + 데이터베이스 ID 4개만 바꾸면 됨 (OPERATIONS.md 2-1). 2017~2026 자료 반영 확인
 
 | Notion DB | 화면 컴포넌트 | 속성 |
-|---|---|---|
+| --- | --- | --- |
 | Members | MemberList (탭 = lunaGeneration, 최신 기수부터) | name, lunaGeneration, generation·class(→ "25기 웹프로그래밍과"), position, description, image |
 | Awards | AwardList (연도 탭) | name, year(select), prize, team, members(multi-select → "a,b"), date(→ "YYYY년 MM월 DD일 하루동안"), image |
 | Projects | ProjectPage (연도 탭 + 상단 제목) | name, year(select), description, image, awards(multi-select) |
@@ -141,7 +147,7 @@ Dockerfile · docker-compose.yml · docker-compose.traefik.yml · .gitlab-ci.yml
 측정: Lighthouse 13.6 (로컬, 모바일=느린 4G·CPU 4배 시뮬레이션). 원본은 python http.server(무압축) + jsDelivr 대체 CDN, 신규는 Next.js standalone(gzip).
 
 | 측정 항목 | 개선 전 (원본) | 개선 후 |
-|---|---:|---:|
+| --- | ---: | ---: |
 | LCP (모바일, 홈/멤버/업적/프로젝트/Q&A) | 27.8s / 11.5s / 15.4s / 22.1s / 6.3s | 0.91s / 0.91s / 0.91s / 0.91s / 1.87s |
 | LCP (데스크톱, 홈) | 4.28s | 0.25s |
 | CLS | 0 | 0 ~ 0.003 |
@@ -163,7 +169,7 @@ Dockerfile · docker-compose.yml · docker-compose.traefik.yml · .gitlab-ci.yml
 ## G. 테스트 결과 (모두 실제 실행)
 
 | 항목 | 결과 |
-|---|---|
+| --- | --- |
 | Build (`npm run build`, DB 있음/없음 두 경우) | ✅ |
 | Lint (`eslint .`) | ✅ |
 | Type Check (`tsc --noEmit`) | ✅ |
@@ -227,7 +233,7 @@ docker compose up -d --build         # db → migrate → app → scheduler
 ## J. 보안 검토 결과 (2026-10-31)
 
 | 구분 | 점검 내용 | 결과 |
-|---|---|---|
+| --- | --- | --- |
 | 비밀값 | 깃허브에 올라간 커밋 이력 전체에서 Notion 토큰·동기화 키·관리자 비밀번호·DB 비밀번호 검색 | 없음 ✅ (`.env*` 는 git 제외, `.env.example` 만 추적) |
 | 의존성 | `npm audit` (운영 서버에 들어가는 패키지) | 취약점 0건 ✅ |
 | 의존성 | `npm audit` (개발용 도구 포함) | 중간 19건 — esbuild·minimatch 등 개발 도구 전용, 운영 이미지에 포함되지 않음 (위험 낮음) |
@@ -242,7 +248,8 @@ docker compose up -d --build         # db → migrate → app → scheduler
 | 컨테이너 | 앱·워커 모두 root 가 아닌 사용자로 실행, DB 포트 외부 미노출 | 이상 없음 ✅ |
 | 장애 시 데이터 보호 | 노션 DB 가 삭제·권한 해제돼도 기존 데이터 유지 (실제로 'LUNA 사이트 설정' 삭제 상황에서 확인) | 이상 없음 ✅ |
 
-**운영자 권장 사항**
+### 운영자 권장 사항
+
 - 관리자 비밀번호는 무작위 12자 이상으로 하고, 가능하면 리버스 프록시(Traefik/Nginx)에서 `/admin` 경로에 IP 제한이나 요청 횟수 제한을 거세요 (앱 자체에는 로그인 시도 횟수 제한이 없음).
 - Notion 통합(new_site)은 현재 개인 워크스페이스 전체를 볼 수 있습니다. 사이트용 데이터베이스 4개만 공유하도록 좁히세요.
 - 토큰 유출이 의심되면 Notion 개발자 포털에서 토큰을 재발급하고 `.env` 들을 교체하세요.
