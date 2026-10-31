@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { lookup } from 'node:dns/promises';
 import { isIP } from 'node:net';
 import sharp, { type Sharp } from 'sharp';
 import type { ImageVariant } from './collections';
@@ -9,7 +10,8 @@ import type { ImageVariant } from './collections';
  * 동기화 시점에 내려받아 DB(media 테이블)에 저장하고 우리 도메인(/media/:id.webp)에서 장기 캐시로 제공한다.
  */
 
-export const MAX_DOWNLOAD_BYTES = 25 * 1024 * 1024;
+// 노션에 원본 그대로 올라간 고해상도 사진(30MB 안팎 PNG)이 있어 여유 있게 잡되, 비정상적으로 큰 파일은 막는다
+export const MAX_DOWNLOAD_BYTES = 64 * 1024 * 1024;
 const DOWNLOAD_TIMEOUT_MS = 30_000;
 
 export type ProcessedImage = {
@@ -22,24 +24,40 @@ export type ProcessedImage = {
 
 export class ImageError extends Error {}
 
-/** 사설망/로컬 주소로의 요청 차단 (외부 URL 이미지 속성을 통한 SSRF 방지) */
+/** 사설망·루프백·링크로컬·메타데이터 주소인지 (IPv4 / IPv6, IPv4-mapped 포함) */
+export function isPrivateAddress(ip: string): boolean {
+  const addr = ip.toLowerCase().replace(/^::ffff:/, '');
+  if (isIP(addr) === 4) {
+    return /^(0\.|10\.|127\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.|100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.|22[4-9]\.|23\d\.|24\d\.|25[0-5]\.)/.test(addr);
+  }
+  if (isIP(addr) === 6) return addr === '::' || addr === '::1' || /^(fc|fd|fe8|fe9|fea|feb)/.test(addr);
+  return false;
+}
+
+/** 사설망/로컬 주소로의 요청 차단 (외부 URL 이미지 속성을 통한 SSRF 방지) — 문자열 단계 검사 */
 export function assertPublicHttpUrl(raw: string): URL {
   const url = new URL(raw);
   if (url.protocol !== 'https:' && url.protocol !== 'http:') throw new ImageError('unsupported protocol');
   const host = url.hostname.replace(/^\[|\]$/g, '').toLowerCase();
-  const privateHost =
-    host === 'localhost' ||
-    host.endsWith('.localhost') ||
-    host.endsWith('.internal') ||
-    host.endsWith('.local') ||
-    (isIP(host) === 4 && /^(10\.|127\.|0\.|169\.254\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(host)) ||
-    (isIP(host) === 6 && (host === '::1' || host.startsWith('fc') || host.startsWith('fd') || host.startsWith('fe80')));
-  if (privateHost) throw new ImageError('private address not allowed');
+  if (host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.internal') || host.endsWith('.local') || isPrivateAddress(host)) {
+    throw new ImageError('private address not allowed');
+  }
   return url;
 }
 
-export async function downloadImage(rawUrl: string, fetchImpl: typeof fetch = fetch): Promise<Buffer> {
+/** 도메인이 실제로 어떤 IP 로 풀리는지 확인해, 내부망으로 향하는 도메인(DNS 리바인딩 등)을 차단 */
+async function assertResolvesPublic(url: URL, resolve: typeof lookup) {
+  const host = url.hostname.replace(/^\[|\]$/g, '');
+  if (isIP(host)) return;
+  const addresses = await resolve(host, { all: true }).catch(() => {
+    throw new ImageError('dns lookup failed');
+  });
+  if (addresses.length === 0 || addresses.some((a) => isPrivateAddress(a.address))) throw new ImageError('private address not allowed');
+}
+
+export async function downloadImage(rawUrl: string, fetchImpl: typeof fetch = fetch, resolve: typeof lookup = lookup): Promise<Buffer> {
   let url = assertPublicHttpUrl(rawUrl);
+  await assertResolvesPublic(url, resolve);
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS);
   try {
@@ -48,6 +66,7 @@ export async function downloadImage(rawUrl: string, fetchImpl: typeof fetch = fe
     for (let hop = 0; res.status >= 300 && res.status < 400 && res.headers.get('location'); hop++) {
       if (hop >= 3) throw new ImageError('too many redirects');
       url = assertPublicHttpUrl(new URL(res.headers.get('location')!, url).toString());
+      await assertResolvesPublic(url, resolve);
       res = await fetchImpl(url, { signal: controller.signal, redirect: 'manual' });
     }
     if (!res.ok || !res.body) throw new ImageError(`download failed (${res.status})`);

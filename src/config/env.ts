@@ -59,7 +59,7 @@ const notionSchema = z.object({
 
 const syncSchema = z.object({
   SYNC_SECRET: optionalString.pipe(z.string().min(32, 'must be at least 32 characters').optional()),
-  CRON_SECRET: optionalString,
+  CRON_SECRET: optionalString.pipe(z.string().min(16, 'must be at least 16 characters').optional()),
   SYNC_INTERVAL_MINUTES: z.coerce.number().int().min(1).max(1440).default(15),
   SYNC_LOCK_TTL_MINUTES: z.coerce.number().int().min(1).max(120).default(15),
   APP_URL: optionalString.pipe(z.url().optional()),
