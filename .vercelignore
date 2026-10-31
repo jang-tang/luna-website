@@ -1,0 +1,17 @@
+# vercel deploy(CLI) 로 직접 배포할 때 업로드하지 않을 파일
+# 비밀값 — Vercel 에는 환경변수로만 전달한다
+.env
+.env.*
+!.env.example
+.notion-bootstrap.json
+# 로컬 개발/테스트 산출물
+.pglite/
+.next/
+dist/
+node_modules/
+test-results/
+playwright-report/
+# 원본 시드 이미지(로컬 db:seed 전용, 운영 빌드에 불필요)
+content/seed/images/
+.idea/
+.DS_Store
