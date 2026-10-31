@@ -23,7 +23,8 @@
     "scheduler": "tsx scripts/scheduler.ts",
     "db:dev": "tsx scripts/dev-db.ts",
     "build:scripts": "esbuild scripts/scheduler.ts scripts/db-migrate.ts scripts/sync-notion.ts scripts/sync-status.ts --bundle --platform=node --target=node22 --format=cjs --outdir=dist/scripts --external:sharp --log-level=warning",
-    "visual:compare": "tsx scripts/visual/compare.ts"
+    "visual:compare": "tsx scripts/visual/compare.ts",
+    "notion:create-settings": "tsx scripts/notion-create-settings.ts"
   },
   "dependencies": {
     "@next/env": "^16.4.3",

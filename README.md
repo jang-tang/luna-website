@@ -71,6 +71,7 @@ npm run dev                     # http://localhost:3000
 | `npm run sync:status` | 동기화 상태/최근 실행/오류 확인 |
 | `npm run scheduler` | 상주형 정기 동기화 프로세스 |
 | `npm run notion:discover` | 통합이 접근 가능한 데이터 소스와 환경변수 후보 출력 |
+| `npm run notion:create-settings -- --parent <페이지URL> [--write-env]` | Notion 에 '사이트 설정' 데이터베이스를 기본값과 함께 생성 |
 | `node --import tsx scripts/visual/capture-cli.ts <url> <dir> [--legacy]` / `npm run visual:compare -- <기준> <비교> <diff>` | 화면 캡처/비교 (UI 회귀 확인) |
 
 ## 환경변수

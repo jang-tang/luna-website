@@ -95,6 +95,22 @@ test.describe('인터랙션', () => {
     }
   });
 
+  test('업적·프로젝트 사진을 불러오지 못하면 루나 로고를 표시한다', async ({ page }) => {
+    // 동기화된 사진 요청을 모두 실패시킨다
+    await page.route('**/media/**', (route) => route.abort());
+    for (const p of [
+      { path: '/award.html', selector: '#page.award #award #item #image' },
+      { path: '/project.html', selector: '#page.project #project #item #image' },
+    ]) {
+      await page.goto(p.path);
+      const images = page.locator(p.selector);
+      await expect(images.first()).toBeVisible();
+      await expect
+        .poll(() => images.evaluateAll((els) => els.every((el) => (el as HTMLElement).style.backgroundImage.includes('logo-512x512'))), { message: p.path })
+        .toBe(true);
+    }
+  });
+
   test('"스크롤하여 더 알아보기" 클릭 시 한 화면 아래로 부드럽게 스크롤', async ({ page }) => {
     await page.goto('/member.html');
     await page.locator('#page.main #detail').click();

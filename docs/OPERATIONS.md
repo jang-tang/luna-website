@@ -121,7 +121,7 @@ http://localhost:3000/admin/sync — 아이디/비밀번호는 `.env.local`(방�
 | Awards (1) | 업적 페이지 | name, year(연도 탭), prize, team, members, date, image |
 | Projects (1) | 프로젝트 페이지 | name, year(연도 탭), description, image (awards 는 저장만 하고 화면에는 표시 안 함) |
 | FAQ (1) | Q&A 페이지 | question, answer, order |
-| (사이트 설정) | 홈의 숫자·태그, 업적 상단 문구, Q&A 영상 | 현재 노션 DB 없음 → 원본 기본값 사용 |
+| LUNA 사이트 설정 | 홈의 숫자·태그, 업적 상단 문구, Q&A 영상 | 키, 값 (설명·순서·공개는 참고용) |
 
 ### 이렇게 하면 됩니다
 
@@ -135,7 +135,11 @@ http://localhost:3000/admin/sync — 아이디/비밀번호는 `.env.local`(방�
 | 사진 바꾸기 | image 칸에 파일 업로드 (첫 번째 파일만 사용, **JPG/PNG/WebP 권장**) |
 | 새 기수 탭 추가 (예: LUNA 10기) | Members 의 `lunaGeneration` 에 "LUNA 10기" 선택지 추가 → 탭은 숫자가 큰 기수부터 자동 정렬, 명예 멤버는 맨 뒤 |
 | 업적 날짜 | `date` 에 날짜 입력. 하루짜리는 "2025년 07월 18일 하루동안", 기간이면 "…부터 닷새동안" 처럼 자동 변환 |
-| 홈의 "N개의 프로젝트"·대회 수·상금, 흐르는 태그, Q&A 영상 | 지금은 원본 기본값(72개 · 114개 · 7,500만원 이상)으로 고정. 노션에서 바꾸고 싶으면 아래 '사이트 설정 데이터베이스' 참고 |
+| 홈의 "N개의 프로젝트" | 'LUNA 사이트 설정' 의 `stats.projects` 행의 **값** 수정 (예: 72) |
+| 홈·업적의 "N개의 대회" | `stats.contests` 값 수정 (예: 114) |
+| 홈·업적의 상금 총액 | `stats.prize` 값 수정 (예: 7,500만원 → 화면에는 "7,500만원 이상") |
+| 홈의 흐르는 태그 3줄 | `home.tags.1`, `home.tags.2`, `home.tags.3` 값 수정 (쉼표로 구분) |
+| Q&A 영상 | `qna.video_url` 값 수정 (유튜브 주소만 허용, 다른 주소는 무시되고 기본 영상 사용) |
 
 ### 주의할 점
 
@@ -144,7 +148,8 @@ http://localhost:3000/admin/sync — 아이디/비밀번호는 `.env.local`(방�
 - **아이폰 사진(HEIC)은 변환되지 않습니다.** JPG 나 PNG 로 다시 올려 주세요. (현재 '모두의 창업 경기 비즈쿨 중고등 창업캠프' 업적 사진이 HEIC 라 사진 없이 표시됨)
 - 사진 파일은 64MB 까지 받을 수 있습니다. 사이트에는 작게 변환해서 저장하므로 원본 크기는 화면 속도에 영향이 없습니다.
 - Notion 통합(new_site)과의 **공유를 끊으면** 동기화가 멈춥니다. 이때 사이트 데이터가 지워지지는 않습니다 (안전장치).
-- **사이트 설정 데이터베이스** (선택): 홈의 숫자 등을 노션에서 바꾸고 싶으면, 제목 열 `키`, 텍스트 열 `값` 을 가진 데이터베이스를 만들고 행을 추가합니다 → `stats.projects`, `stats.contests`, `stats.prize`, `home.tags.1`~`3`(쉼표 구분), `qna.video_url`. 그 데이터베이스를 통합에 연결한 뒤 `npm run notion:discover` 로 ID 를 확인해 `.env` 의 `NOTION_SETTINGS_DATA_SOURCE_ID` 에 넣으세요. 비워 두면 원본 기본값을 씁니다.
+- **'LUNA 사이트 설정'** 은 `메모장` 아래에 있습니다. `키` 열의 이름(stats.projects 등)은 바꾸지 말고 **값** 만 고치세요. 값을 비우거나 행을 지우면 원본 기본값(72개 · 114개 · 7,500만원)을 씁니다.
+- 사이트 설정 데이터베이스를 실수로 지웠다면: 노션 휴지통에서 복구하거나, `.env` 의 `NOTION_SETTINGS_DATA_SOURCE_ID` 를 비운 뒤 `npm run notion:create-settings -- --parent <부모 페이지 주소> --write-env` 로 다시 만드세요 (기본값이 채워진 상태로 생성).
 
 ### 2-1. 원래 루나 노션(DIMIGO LUNA)으로 연결 바꾸기
 
@@ -157,7 +162,11 @@ DIMIGO LUNA 관리자에게 'API 토큰' 방식 연결을 받았다면, **토큰
    npm run notion:discover
    ```
    출력된 `NOTION_MEMBERS_…`, `NOTION_AWARDS_…`, `NOTION_PROJECTS_…`, `NOTION_QNA_…` 4줄을 `.env` 에 반영
-4. 사이트 설정은 비워 둔 상태 그대로 두면 원본 기본값을 씁니다. 노션에서 관리하려면 위 '사이트 설정 데이터베이스' 를 DIMIGO LUNA 에 만들어 ID 를 넣으세요.
+4. 사이트 설정: 새 토큰은 개인 워크스페이스의 'LUNA 사이트 설정' 을 볼 수 없습니다. `.env` 의 `NOTION_SETTINGS_DATA_SOURCE_ID` 를 비운 뒤, 루나 노션의 'Notion API' 페이지 아래에 새로 만드세요:
+   ```bash
+   npm run notion:create-settings -- --parent <'Notion API' 페이지 주소> --write-env
+   ```
+   (만들지 않고 비워 두면 원본 기본값을 씁니다)
 5. 전체 동기화:
    ```bash
    npm run sync -- --full
