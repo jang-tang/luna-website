@@ -14,11 +14,13 @@
 - 검사: lint ✅ typecheck ✅ vitest 38 ✅ playwright 38 ✅ build(DB 유/무) ✅, DB 장애 시 서비스 유지 ✅
 
 - **Vercel 배포 완료**: <https://luna-website-xi.vercel.app> (Neon DB, 운영 전체 동기화 272건 확인)
+- **자동화 연결 완료**: `git push` → Vercel 자동 배포, 깃허브 Actions 15분 동기화(Secrets 등록, 수동 실행으로 확인)
 
 ## 남은 일
 
-1. 운영 서버 배포 + 비밀값 설정 (로컬 Docker(colima) 에서는 전체 검증 완료)
-2. 새 도메인 결정 후 `SITE_URL`/`SITE_HOST` 설정 — `luna.codes` 는 탈취되어 사용 금지
+1. 노션 내용 정리: '모두의 창업 경기 비즈쿨…' 업적 사진(HEIC)을 JPG/PNG 로 재업로드, Projects 빈 행 2개 삭제
+2. 새 도메인 결정 시 Vercel 에 도메인 연결 + `SITE_URL` 변경 — `luna.codes` 는 탈취되어 사용 금지
+3. 원래 루나 노션(DIMIGO LUNA) 토큰을 받으면 OPERATIONS.md 2-1 절차로 전환
 
 ## 로컬 환경 메모
 
