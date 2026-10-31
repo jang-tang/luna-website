@@ -9,6 +9,7 @@ Notion (원본) ──(15분마다 동기화)──▶ PostgreSQL ──▶ Next
 ```
 
 - 방문자 요청 시에는 Notion API 를 호출하지 않습니다. Notion 이 장애여도 DB 의 마지막 데이터로 정상 표시됩니다.
+- **운영·테스트·배포 절차는 [docs/OPERATIONS.md](docs/OPERATIONS.md) 를 보세요.**
 - 화면(UI)은 기존 정적 사이트(HTML/SCSS/jQuery)와 동일합니다. 기존 URL(`/member.html` 등)도 그대로 동작합니다.
 
 ## 기술 스택
@@ -24,20 +25,18 @@ Notion (원본) ──(15분마다 동기화)──▶ PostgreSQL ──▶ Next
 
 ## Notion 구조
 
-`메모장` 페이지 아래에 다음 데이터베이스가 있습니다. 행을 추가·수정·삭제하면 최대 15분 안에 사이트에 반영됩니다.
+DIMIGO LUNA 'Notion API' 페이지의 데이터베이스(Members / Awards / Projects / FAQ)와 같은 구조를 읽습니다. 현재는 그 복사본(개인 워크스페이스 `메모장` 아래)에 연결되어 있으며, 원래 노션으로 바꾸는 방법은 [docs/OPERATIONS.md 2-1](docs/OPERATIONS.md) 을 참고하세요.
 
-| 데이터베이스 | 화면 | 속성 |
+| 데이터베이스 | 화면 | 사용하는 열 |
 |---|---|---|
-| LUNA 멤버 | /member | 이름, 기수(select — **옵션 순서 = 탭 순서**), 역할, 소속, 소개, 사진, 순서, 공개 |
-| LUNA 업적 | /award | 대회명, 연도, 수상, 팀, 참여자, 일자, 사진, 순서, 공개 |
-| LUNA 프로젝트 | /project | 프로젝트명, 연도, 설명, 수상 내역, 이미지, 순서, 공개 |
-| LUNA Q&A | /qna | 질문, 답변(줄바꿈 유지), 순서, 공개 |
-| LUNA 사이트 설정 | 홈/업적/Q&A 문구 | 키, 값, 설명, 순서, 공개 |
+| Members | /member | name, lunaGeneration(탭: 최신 기수부터), generation + class(소속), position, description, image |
+| Awards | /award | name, year(연도 탭), prize, team, members(다중 선택), date(날짜 → "…하루동안" 문구), image |
+| Projects | /project | name, year, description, image, awards |
+| FAQ | /qna | question, answer, order |
+| LUNA 사이트 설정 | 홈/업적/Q&A 문구 | 키, 값 (stats.projects, stats.contests, stats.prize, home.tags.1~3, qna.video_url) |
 
-- **순서**: 작은 숫자가 먼저 표시됩니다. 연도별 탭은 최신 연도부터 표시됩니다.
-- **공개** 체크 해제 → 사이트에서 숨김(데이터 유지). 페이지 삭제(휴지통) → DB 에서 삭제 처리(soft delete), 복구하면 다시 표시.
-- 사이트 설정 키: `stats.projects`, `stats.contests`, `stats.prize`, `home.tags.1~3`(쉼표 구분), `qna.video_url`(유튜브 URL).
-  값이 비어 있으면 원본 사이트의 기본값을 사용합니다.
+- 선택 열: `order`(숫자, 작은 값 먼저), `published`(체크박스, 해제하면 숨김). 없으면 전체 공개, 기본 정렬(멤버·프로젝트 이름순, 업적 최신 날짜순).
+- 행 삭제(휴지통) → DB 에서 삭제 처리(soft delete), 복구하면 다시 표시.
 - 필수값이 빠진 행(예: 이름 없음, 연도 범위 밖)은 건너뛰고 동기화 기록에 오류로 남습니다. 수정하면 다음 동기화에서 반영됩니다.
 
 ## 로컬 개발
@@ -72,7 +71,6 @@ npm run dev                     # http://localhost:3000
 | `npm run sync:status` | 동기화 상태/최근 실행/오류 확인 |
 | `npm run scheduler` | 상주형 정기 동기화 프로세스 |
 | `npm run notion:discover` | 통합이 접근 가능한 데이터 소스와 환경변수 후보 출력 |
-| `npm run notion:bootstrap -- --parent <페이지URL> [--dry-run] [--write-env]` | Notion DB 5개 생성 + 원본 콘텐츠 이전 (이미 실행 완료) |
 | `node --import tsx scripts/visual/capture-cli.ts <url> <dir> [--legacy]` / `npm run visual:compare -- <기준> <비교> <diff>` | 화면 캡처/비교 (UI 회귀 확인) |
 
 ## 환경변수

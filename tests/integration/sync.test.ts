@@ -18,17 +18,32 @@ let db: Database;
 let notion: FakeNotion;
 let invalidated: CollectionKey[][];
 
+// 실제 DIMIGO LUNA 'Members' DB 구조 (order/published 는 선택 속성)
 const member = (name: string, gen: string, order: number, extra: Record<string, ReturnType<typeof P.title>> = {}) => ({
-  이름: P.title(name),
-  기수: P.select(gen),
-  역할: P.select('Developer'),
-  소속: P.text('22기 해킹방어과', 'cls'),
-  소개: P.text(`${name} 소개`, 'desc'),
-  사진: P.file(`m-${name}`),
-  순서: P.number(order),
-  공개: P.check(true),
+  name: P.title(name),
+  lunaGeneration: P.select(gen),
+  generation: P.select('22기'),
+  class: P.select('해킹방어과'),
+  position: P.select('Developer'),
+  description: P.text(`${name} 소개`, 'desc'),
+  image: P.file(`m-${name}`),
+  order: P.number(order),
+  published: P.check(true),
   ...extra,
 });
+
+const award = (name: string, year: string | null, extra: Record<string, ReturnType<typeof P.title>> = {}) => ({
+  name: P.title(name),
+  year: P.select(year),
+  prize: P.text('금상'),
+  team: P.text('STARE'),
+  members: P.multi(['서승표', '정준영']),
+  date: P.date('2023-10-28'),
+  image: P.file(`a-${name}`),
+  ...extra,
+});
+
+const qna = (question: string, answer: string, order: number) => ({ question: P.title(question), answer: P.text(answer, 'ans'), order: P.number(order) });
 
 function deps(overrides: Partial<SyncDeps> = {}): SyncDeps {
   return {
@@ -36,6 +51,8 @@ function deps(overrides: Partial<SyncDeps> = {}): SyncDeps {
     notion: new NotionClient({ token: 'ntn_fake_token_for_tests', fetchImpl: notion.fetch, sleep: async () => {}, requestsPerSecond: 1000, maxRetries: 1 }),
     dataSourceIds: { members: MEMBERS, awards: AWARDS, qna: QNA },
     fetchImpl: notion.fetch,
+    // 가짜 이미지 호스트는 공인 IP(문서용 대역)로 풀린다고 가정
+    lookupImpl: (async () => [{ address: '93.184.216.34', family: 4 }]) as unknown as SyncDeps['lookupImpl'],
     onInvalidate: (changed) => void invalidated.push(changed),
     ...overrides,
   };
@@ -61,7 +78,7 @@ beforeEach(async () => {
   invalidated = [];
   notion = new FakeNotion();
   notion.addDataSource(MEMBERS, {
-    기수: { id: 'sel', name: '기수', type: 'select', select: { options: [{ id: '1', name: 'LUNA 7기' }, { id: '2', name: 'LUNA 6기' }, { id: '3', name: '명예 멤버' }] } },
+    lunaGeneration: { id: 'sel', name: 'lunaGeneration', type: 'select', select: { options: [{ id: '1', name: 'LUNA 7기' }, { id: '2', name: 'LUNA 6기' }, { id: '3', name: '명예 멤버' }] } },
   });
   notion.addDataSource(AWARDS);
   notion.addDataSource(QNA);
@@ -69,12 +86,12 @@ beforeEach(async () => {
 
 describe('Notion → DB 동기화', () => {
   it('초기 동기화: 페이지네이션된 모든 페이지를 가져와 저장하고 이미지/탭 순서/커서를 기록한다', async () => {
-    // 명예 멤버를 먼저 만들어도 탭 순서는 Notion '기수' 옵션 순서를 따른다
+    // 명예 멤버를 먼저 만들어도 탭 순서는 최신 기수 → … → 명예 멤버
     notion.addPage(MEMBERS, member('강인영', '명예 멤버', 100));
     for (let i = 0; i < 5; i++) notion.addPage(MEMBERS, member(`7기${i}`, 'LUNA 7기', i));
     notion.addPage(MEMBERS, member('박성민', 'LUNA 6기', 10));
-    notion.addPage(AWARDS, { 대회명: P.title('해커톤'), 연도: P.number(2023), 수상: P.text('금상'), 팀: P.text('STARE'), 참여자: P.text('서승표,정준영'), 일자: P.text('2023년 10월 28일'), 사진: P.file('a-1'), 순서: P.number(1), 공개: P.check(true) });
-    notion.addPage(QNA, { 질문: P.title('루나는?'), 답변: P.text('IT 소셜벤처\n동아리'), 순서: P.number(1), 공개: P.check(true) });
+    notion.addPage(AWARDS, award('해커톤', '2023'));
+    notion.addPage(QNA, qna('루나는?', 'IT 소셜벤처\n동아리', 1));
 
     const result = await sync();
     expect(result.status).toBe('success');
@@ -88,8 +105,8 @@ describe('Notion → DB 동기화', () => {
     expect(groups[0]!.members.map((m) => m.name)).toEqual(['7기0', '7기1', '7기2', '7기3', '7기4']);
     expect(groups[0]!.members[0]!.image).toMatch(/^\/media\/[0-9a-f]{32}\.webp$/);
 
-    const [award] = (await selectAwardYears(db))[0]!.awards;
-    expect(award).toMatchObject({ name: '해커톤', prize: '금상', team: 'STARE', members: '서승표,정준영', date: '2023년 10월 28일' });
+    const [firstAward] = (await selectAwardYears(db))[0]!.awards;
+    expect(firstAward).toMatchObject({ name: '해커톤', prize: '금상', team: 'STARE', members: '서승표,정준영', date: '2023년 10월 28일 하루동안' });
     expect((await selectQnas(db))[0]!.answer).toBe('IT 소셜벤처\n동아리');
 
     const state = await db.select().from(syncState).where(eq(syncState.collection, 'members'));
@@ -119,8 +136,8 @@ describe('Notion → DB 동기화', () => {
     const c = notion.addPage(MEMBERS, member('C', 'LUNA 7기', 3));
     await sync();
 
-    notion.updatePage(MEMBERS, a, { 소개: P.text('바뀐 소개', 'desc') });
-    notion.updatePage(MEMBERS, b, { 공개: P.check(false) });
+    notion.updatePage(MEMBERS, a, { description: P.text('바뀐 소개', 'desc') });
+    notion.updatePage(MEMBERS, b, { published: P.check(false) });
     notion.trashPage(MEMBERS, c);
     let result = await sync();
     expect(result.stats.members).toMatchObject({ updated: 1, hidden: 1, deleted: 1 });
@@ -133,7 +150,7 @@ describe('Notion → DB 동기화', () => {
 
     // 휴지통에서 복구 (Notion 은 복구 시 last_edited_time 이 바뀌지 않을 수 있다 → 목록 비교로 감지)
     notion.trashPage(MEMBERS, c, false);
-    notion.updatePage(MEMBERS, b, { 공개: P.check(true) });
+    notion.updatePage(MEMBERS, b, { published: P.check(true) });
     result = await sync();
     expect(result.stats.members?.restored).toBe(1);
     names = (await selectMemberGroups(db))[0]!.members.map((m) => m.name);
@@ -141,19 +158,19 @@ describe('Notion → DB 동기화', () => {
   });
 
   it('같은 분(minute) 안에서 다시 수정돼도 콘텐츠 해시로 변경을 감지한다', async () => {
-    const id = notion.addPage(QNA, { 질문: P.title('Q1'), 답변: P.text('A1'), 순서: P.number(1), 공개: P.check(true) });
+    const id = notion.addPage(QNA, qna('Q1', 'A1', 1));
     await sync();
     // last_edited_time 은 분 단위라 같은 값일 수 있음 → 커서 여유(2분)로 다시 조회되고 해시로 변경 판정
-    notion.updatePage(QNA, id, { 답변: P.text('A2') });
+    notion.updatePage(QNA, id, { answer: P.text('A2', 'ans') });
     const result = await sync();
     expect(result.stats.qna?.updated).toBe(1);
     expect((await selectQnas(db))[0]!.answer).toBe('A2');
   });
 
   it('잘못된 페이지(필수값 누락)는 건너뛰고 나머지는 반영하며 오류를 기록한다', async () => {
-    notion.addPage(AWARDS, { 대회명: P.title(''), 연도: P.number(2023), 순서: P.number(1), 공개: P.check(true) });
-    notion.addPage(AWARDS, { 대회명: P.title('정상'), 연도: P.number(1800), 순서: P.number(2), 공개: P.check(true) });
-    notion.addPage(AWARDS, { 대회명: P.title('OK'), 연도: P.number(2022), 순서: P.number(3), 공개: P.check(true) });
+    notion.addPage(AWARDS, award('', '2023'));
+    notion.addPage(AWARDS, award('정상', '1800'));
+    notion.addPage(AWARDS, award('OK', '2022'));
     const result = await sync();
     expect(result.status).toBe('partial');
     expect(result.stats.awards).toMatchObject({ added: 1, failed: 2 });
@@ -164,12 +181,12 @@ describe('Notion → DB 동기화', () => {
 
   it('Notion 장애 시 해당 컬렉션은 실패 처리하고 기존 DB 데이터와 커서를 유지한다', async () => {
     notion.addPage(MEMBERS, member('A', 'LUNA 7기', 1));
-    notion.addPage(QNA, { 질문: P.title('Q'), 답변: P.text('A'), 순서: P.number(1), 공개: P.check(true) });
+    notion.addPage(QNA, qna('Q', 'A', 1));
     await sync();
     const cursorBefore = (await db.select().from(syncState).where(eq(syncState.collection, 'members')))[0]!.cursor;
 
     notion.failingQueries.add(MEMBERS);
-    notion.updatePage(QNA, [...notion.stores.get(QNA)!.pages.keys()][0]!, { 답변: P.text('새 답변') });
+    notion.updatePage(QNA, [...notion.stores.get(QNA)!.pages.keys()][0]!, { answer: P.text('새 답변', 'ans') });
     const result = await sync();
     expect(result.status).toBe('partial');
     expect(result.errors.some((e) => e.collection === 'members')).toBe(true);
@@ -202,7 +219,7 @@ describe('Notion → DB 동기화', () => {
     await sync();
     const imageBefore = (await db.select().from(members))[0]!.imageId;
 
-    notion.updatePage(MEMBERS, id, { 사진: P.file('m-new') });
+    notion.updatePage(MEMBERS, id, { image: P.file('m-new') });
     notion.failingImages.add('m-new');
     let result = await sync();
     expect(result.status).toBe('partial');
@@ -238,7 +255,7 @@ describe('Notion → DB 동기화', () => {
 
   it('25조각 이상으로 잘린 텍스트는 property item API 로 전체를 받아온다', async () => {
     const parts = Array.from({ length: 25 }, (_, i) => `p${i},`);
-    const id = notion.addPage(QNA, { 질문: P.title('긴 답변'), 답변: P.textParts(parts, 'ans'), 순서: P.number(1), 공개: P.check(true) });
+    const id = notion.addPage(QNA, { ...qna('긴 답변', '', 1), answer: P.textParts(parts, 'ans') });
     notion.setFullPropertyItems(id, 'ans', [...parts, 'TAIL']);
     await sync();
     expect((await selectQnas(db))[0]!.answer.endsWith('TAIL')).toBe(true);
@@ -247,7 +264,7 @@ describe('Notion → DB 동기화', () => {
   it('참조가 끊긴 지 하루 지난 이미지는 정리된다', async () => {
     const id = notion.addPage(MEMBERS, member('A', 'LUNA 7기', 1));
     await sync();
-    notion.updatePage(MEMBERS, id, { 사진: P.noFile() });
+    notion.updatePage(MEMBERS, id, { image: P.noFile() });
     await sync();
     expect(await db.$count(media)).toBe(1);
     await db.update(media).set({ createdAt: sql`now() - interval '2 days'` });
@@ -256,11 +273,40 @@ describe('Notion → DB 동기화', () => {
   });
 
   it('memberGroups 는 Notion 옵션 순서를 저장하고 qnas 는 정렬 순서를 따른다', async () => {
-    notion.addPage(QNA, { 질문: P.title('두번째'), 답변: P.text(''), 순서: P.number(2), 공개: P.check(true) });
-    notion.addPage(QNA, { 질문: P.title('첫번째'), 답변: P.text(''), 순서: P.number(1), 공개: P.check(true) });
+    notion.addPage(QNA, qna('두번째', '', 2));
+    notion.addPage(QNA, qna('첫번째', '', 1));
     await sync();
     expect((await selectQnas(db)).map((q) => q.question)).toEqual(['첫번째', '두번째']);
     expect((await db.select().from(memberGroups)).map((g) => g.name)).toEqual(['LUNA 7기', 'LUNA 6기', '명예 멤버']);
     expect(await db.$count(qnas)).toBe(2);
+  });
+
+  it('실제 DB 구조: 기수 탭은 최신 기수부터, 소속은 "기수 학과", 업적은 연도(선택) 안에서 최신 날짜순·날짜 문구 변환', async () => {
+    notion.addPage(MEMBERS, member('구성원A', 'LUNA 7기', 1));
+    notion.addPage(MEMBERS, { ...member('신입', 'LUNA 9기', 1), order: P.number(null) });
+    notion.addPage(MEMBERS, member('명예', '명예 멤버', 1));
+    notion.addPage(MEMBERS, member('팔기', 'LUNA 8기', 1));
+    // 순서·공개 속성이 없는 행도 기본 공개로 반영
+    const noOptional: Record<string, unknown> = member('무순서', 'LUNA 7기', 0);
+    delete noOptional.order;
+    delete noOptional.published;
+    notion.addPage(MEMBERS, noOptional as ReturnType<typeof member>);
+    notion.addPage(AWARDS, award('여름 대회', '2025', { date: P.date('2025-07-18') }));
+    notion.addPage(AWARDS, award('겨울 대회', '2025', { date: P.date('2025-12-01', '2025-12-02') }));
+    notion.addPage(AWARDS, award('긴 대회', '2026', { date: P.date('2026-01-14', '2026-01-18') }));
+    await sync();
+
+    const groups = await selectMemberGroups(db);
+    expect(groups.map((g) => g.name)).toEqual(['LUNA 9기', 'LUNA 8기', 'LUNA 7기', '명예 멤버']);
+    expect(groups[2]!.members.map((m) => m.name)).toEqual(['구성원A', '무순서']);
+    expect(groups[2]!.members[0]!.className).toBe('22기 해킹방어과');
+
+    const years = await selectAwardYears(db);
+    expect(years.map((y) => y.year)).toEqual([2026, 2025]);
+    expect(years[1]!.awards.map((a) => [a.name, a.date])).toEqual([
+      ['겨울 대회', '2025년 12월 01일부터 이틀동안'],
+      ['여름 대회', '2025년 07월 18일 하루동안'],
+    ]);
+    expect(years[0]!.awards[0]!.date).toBe('2026년 01월 14일부터 닷새동안');
   });
 });

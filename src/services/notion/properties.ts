@@ -25,7 +25,7 @@ function expectType<T extends NotionPropertyValue['type']>(prop: NotionPropertyV
 export function readText(page: NotionPage, name: string, options: { optional?: boolean } = {}): string {
   const prop = get(page, name);
   if (!prop && options.optional) return '';
-  const p = expectType(prop, name, ['title', 'rich_text', 'select', 'number', 'url']);
+  const p = expectType(prop, name, ['title', 'rich_text', 'select', 'multi_select', 'number', 'url']);
   switch (p.type) {
     case 'title':
       return joinRichText((p as { title: RichText[] }).title);
@@ -33,6 +33,9 @@ export function readText(page: NotionPage, name: string, options: { optional?: b
       return joinRichText((p as { rich_text: RichText[] }).rich_text);
     case 'select':
       return (p as { select: { name: string } | null }).select?.name ?? '';
+    case 'multi_select':
+      // 원본 화면은 배열을 쉼표로 결합해 출력했다 (예: 참여자 "서승표,정준영")
+      return (p as { multi_select: Array<{ name: string }> }).multi_select.map((o) => o.name).join(',');
     case 'number': {
       const n = (p as { number: number | null }).number;
       return n === null ? '' : String(n);
@@ -55,6 +58,28 @@ export function readNumber(page: NotionPage, name: string): number | null {
   const n = Number(digits);
   if (digits === '' || !Number.isFinite(n)) throw new PropertyError(`'${name}' 값이 숫자가 아닙니다`);
   return n;
+}
+
+/** 다중 선택 / 줄바꿈 텍스트를 문자열 배열로 */
+export function readList(page: NotionPage, name: string): string[] {
+  const prop = get(page, name);
+  if (!prop) return [];
+  if (prop.type === 'multi_select') return (prop as { multi_select: Array<{ name: string }> }).multi_select.map((o) => o.name.trim()).filter(Boolean);
+  return readText(page, name, { optional: true })
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean);
+}
+
+export type DateRange = { start: string; end: string | null };
+
+/** 날짜 속성 (시간이 있으면 날짜 부분만 사용). 없거나 비어 있으면 null */
+export function readDate(page: NotionPage, name: string): DateRange | null {
+  const prop = get(page, name);
+  if (!prop) return null;
+  const d = expectType(prop, name, ['date']).date as { start: string; end?: string | null } | null;
+  if (!d?.start) return null;
+  return { start: d.start.slice(0, 10), end: d.end ? d.end.slice(0, 10) : null };
 }
 
 /** '공개' 체크박스. 속성이 없으면 공개로 간주한다. */

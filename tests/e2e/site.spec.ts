@@ -84,6 +84,17 @@ test.describe('인터랙션', () => {
     await expect(item).not.toHaveClass(/active/);
   });
 
+  test('마우스 휠로 콘텐츠 위에서 스크롤된다 (모든 페이지)', async ({ page }, info) => {
+    test.skip(info.project.name === 'mobile', '모바일은 터치 스크롤 (휠 없음)');
+    for (const p of PAGES) {
+      await page.goto(p.path);
+      await expect(page.locator('#scroll')).toHaveClass(/loaded/);
+      await page.mouse.move(700, 450);
+      for (let i = 0; i < 3; i++) await page.mouse.wheel(0, 300);
+      await expect.poll(() => page.evaluate(() => (document.querySelector('#scroll') as HTMLElement).scrollTop), { message: p.path }).toBeGreaterThan(300);
+    }
+  });
+
   test('"스크롤하여 더 알아보기" 클릭 시 한 화면 아래로 부드럽게 스크롤', async ({ page }) => {
     await page.goto('/member.html');
     await page.locator('#page.main #detail').click();
@@ -105,11 +116,14 @@ test.describe('인터랙션', () => {
   test('홈: 태그 줄이 화면 폭 이상으로 채워지고 스크롤에 따라 이동한다', async ({ page }) => {
     await page.goto('/');
     const mix = page.locator('#page.project #tags #line[idx="0"] #mix');
-    const widths = await page.evaluate(() => ({
-      mix: (document.querySelector('#page.project #tags #line #mix') as HTMLElement).offsetWidth,
-      app: (document.getElementById('app') as HTMLElement).offsetWidth,
-    }));
-    expect(widths.mix).toBeGreaterThan(widths.app);
+    // 하이드레이션 후 태그 개수가 다시 계산될 때까지 기다린다 (개발 서버는 느림)
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () => (document.querySelector('#page.project #tags #line #mix') as HTMLElement).offsetWidth - (document.getElementById('app') as HTMLElement).offsetWidth,
+        ),
+      )
+      .toBeGreaterThan(0);
     const before = await mix.evaluate((el) => el.style.transform);
     await page.evaluate(() => ((document.querySelector('#scroll') as HTMLElement).scrollTop = 600));
     await expect.poll(() => mix.evaluate((el) => el.style.transform)).not.toBe(before);
@@ -159,5 +173,7 @@ test.describe('API / 보안', () => {
     expect(res.headers()['x-content-type-options']).toBe('nosniff');
     expect(res.headers()['x-frame-options']).toBe('SAMEORIGIN');
     expect(res.headers()['x-powered-by']).toBeUndefined();
+    expect(res.headers()['content-security-policy']).toContain("frame-ancestors 'self'");
+    expect(res.headers()['content-security-policy']).toContain("object-src 'none'");
   });
 });

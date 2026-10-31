@@ -34,7 +34,7 @@ src/
   config/env.ts                 환경변수 검증(zod)
 drizzle/0000_init.sql           마이그레이션
 scripts/                        db-migrate · db-seed · dev-db · sync-notion · sync-status · scheduler
-                                notion-discover · notion-bootstrap · optimize-static-images · subset-fonts
+                                notion-discover · optimize-static-images · subset-fonts
                                 visual/(capture, compare) · perf/summarize-lighthouse
 tests/unit · tests/integration · tests/e2e
 Dockerfile · docker-compose.yml · docker-compose.traefik.yml · .gitlab-ci.yml · vercel.json
@@ -103,15 +103,15 @@ Dockerfile · docker-compose.yml · docker-compose.traefik.yml · .gitlab-ci.yml
 
 - API: REST 직접 호출(fetch), `Notion-Version: 2026-03-11`, `POST /v1/data_sources/{id}/query` (2025-09-03 의 database/data source 분리 반영, `archived` → `in_trash`)
 - 토큰은 서버(동기화 프로세스)에서만 사용. 브라우저·클라이언트 번들·로그에 노출되지 않음 (로그 마스킹 테스트 포함)
-- **실제 구성 완료**: `메모장` 페이지 아래 데이터베이스 5개를 생성하고 원본 콘텐츠 188건 + 이미지 175건을 이전 (`notion:bootstrap`), 데이터 소스 ID 는 `.env` 에 기록됨
+- **연결 대상**: DIMIGO LUNA 'Notion API' 페이지의 Members(75) · Awards(114) · Projects(72) · FAQ(6) 데이터베이스와 같은 구조. 현재 토큰은 개인 워크스페이스 소속이라 그 복사본(`메모장` 아래)에 연결되어 있고, 원래 노션 토큰을 받으면 토큰 + 데이터베이스 ID 4개만 바꾸면 됨 (OPERATIONS.md 2-1). 2017~2026 자료 반영 확인
 
 | Notion DB | 화면 컴포넌트 | 속성 |
 |---|---|---|
-| LUNA 멤버 | MemberList (탭=기수 옵션 순서) | 이름, 기수, 역할, 소속, 소개, 사진, 순서, 공개 |
-| LUNA 업적 | AwardList (연도 탭) | 대회명, 연도, 수상, 팀, 참여자, 일자, 사진, 순서, 공개 |
-| LUNA 프로젝트 | ProjectPage (연도 탭 + 상단 제목) | 프로젝트명, 연도, 설명, 수상 내역, 이미지, 순서, 공개 |
-| LUNA Q&A | QnaList | 질문, 답변, 순서, 공개 |
-| LUNA 사이트 설정 | 홈(프로젝트 수·대회 수·상금·태그), 업적 상단, Q&A 영상 | 키, 값, 설명, 순서, 공개 |
+| Members | MemberList (탭 = lunaGeneration, 최신 기수부터) | name, lunaGeneration, generation·class(→ "25기 웹프로그래밍과"), position, description, image |
+| Awards | AwardList (연도 탭) | name, year(select), prize, team, members(multi-select → "a,b"), date(→ "YYYY년 MM월 DD일 하루동안"), image |
+| Projects | ProjectPage (연도 탭 + 상단 제목) | name, year(select), description, image, awards(multi-select) |
+| FAQ | QnaList | question, answer, order |
+| LUNA 사이트 설정 | 홈(프로젝트 수·대회 수·상금·태그), 업적 상단, Q&A 영상 | 키, 값 |
 
 - 초기 동기화: 커서가 없거나 `--full` 이면 전체 조회. 실측: 188건 + 이미지 175장, Notion 요청 6회, 65초
 - 증분 동기화: `last_edited_time on_or_after (커서)` 필터. Notion 시각이 분 단위로 절삭되므로 커서 = 실행 시작 분 − 2분, 중복 조회분은 content_hash 로 쓰기 생략. 실측: 변경 없음 4.8초(이미지 재다운로드 없음), 실제 Notion 수정 1건 반영 확인
@@ -151,6 +151,9 @@ Dockerfile · docker-compose.yml · docker-compose.traefik.yml · .gitlab-ci.yml
 | JS Bundle | 홈 420KB, Q&A 963KB(유튜브 포함) | 홈 초기 176KB(gzip), three.js+Spline 은 load 후 지연 로딩 |
 | 총 전송량 (모바일, 홈/멤버/업적/프로젝트) | 5.6MB / 3.4MB / 4.6MB / 4.2MB | 1.5MB / 0.96MB / 1.6MB / 1.1MB |
 | DB Query (페이지당, 로컬 PGlite) | 해당 없음 | 중앙값 0.4~0.9ms, p95 ≤ 1.5ms (ISR 캐시 적중 시 DB 미조회) |
+| 이미지 (실제 노션 자료) | 원본 사진 최대 31MB/장 | 멤버 평균 11KB · 업적 평균 53KB · 프로젝트 평균 6KB (WebP) |
+
+> 실제 노션 자료(멤버 75 · 업적 114 · 프로젝트 70)로 다시 측정한 결과도 같은 수준: 모바일 LCP 0.91초(홈·멤버·업적·프로젝트), Q&A 2.05초(유튜브 영상), CLS ≤ 0.003, 멤버·업적·프로젝트 TBT 7~14ms.
 
 주요 개선 요인: 원본 이미지(최대 2MB/장) → 표시 크기 2배 WebP, jQuery·ScrollMagic·GSAP 제거, 콘텐츠를 서버에서 미리 렌더링(원본은 JS 실행 후 DOM 생성), 히어로 배경 preload, 3D 지연 로딩, 정적 자산·미디어 장기 캐시.
 남은 병목: 홈 3D 모델 파싱·셰이더 컴파일(약 3초, 모바일 CPU 4배 감속 기준) — UI 보존을 위해 유지. Q&A 는 유튜브 iframe(약 1MB)이 대부분.
@@ -218,3 +221,28 @@ docker compose up -d --build         # db → migrate → app → scheduler
 # Traefik 서버: SITE_HOST=<새 도메인> docker compose -f docker-compose.yml -f docker-compose.traefik.yml up -d
 # GitLab: main 에 푸시 → .gitlab-ci.yml 이 app/worker 이미지 빌드·푸시·배포
 ```
+
+---
+
+## J. 보안 검토 결과 (2026-10-31)
+
+| 구분 | 점검 내용 | 결과 |
+|---|---|---|
+| 비밀값 | 깃허브에 올라간 커밋 이력 전체에서 Notion 토큰·동기화 키·관리자 비밀번호·DB 비밀번호 검색 | 없음 ✅ (`.env*` 는 git 제외, `.env.example` 만 추적) |
+| 의존성 | `npm audit` (운영 서버에 들어가는 패키지) | 취약점 0건 ✅ |
+| 의존성 | `npm audit` (개발용 도구 포함) | 중간 19건 — esbuild·minimatch 등 개발 도구 전용, 운영 이미지에 포함되지 않음 (위험 낮음) |
+| 관리자 기능 | 수동 동기화 서버 액션이 로그인 헤더 "존재 여부"만 확인 → `/admin` 밖 경로로 호출 시 우회 가능성 | **수정** — 액션 안에서도 아이디·비밀번호를 상수 시간 비교로 직접 검증. 가짜 로그인으로 `/`, `/member` 에 호출해도 실행되지 않음을 확인 |
+| SSRF | 이미지 다운로드가 주소 문자열만 검사 → 도메인이 내부 IP 로 풀리는 경우(DNS 리바인딩) 미차단 | **수정** — 실제 DNS 조회 결과가 사설·루프백·메타데이터 대역이면 차단, 리다이렉트마다 재검사 |
+| 보안 헤더 | 클릭재킹·플러그인·base 태그·외부 폼 전송 제한, HTTPS 강제 | **추가** — CSP(frame-ancestors, object-src, base-uri, form-action, frame-src 유튜브만), HSTS |
+| 네트워크 노출 | docker-compose 가 앱 포트를 서버 모든 인터페이스(HTTP)로 공개 | **수정** — 기본 `127.0.0.1` 바인딩, 리버스 프록시(HTTPS) 경유 공개 (`APP_BIND` 로 변경 가능) |
+| 인증 키 | Vercel `CRON_SECRET` 최소 길이 검증 없음 | **수정** — 16자 이상 강제 (`SYNC_SECRET` 32자, 관리자 비밀번호 12자 이상은 기존부터 강제) |
+| XSS | 원시 HTML 삽입은 고정 레이아웃 스크립트 1곳뿐, 노션 텍스트는 모두 React 이스케이프, 유튜브 주소는 화이트리스트 검증 | 이상 없음 ✅ |
+| SQL 인젝션 | 모든 쿼리 파라미터 바인딩, `sql.raw` 는 코드 상수(컬럼명)에만 사용 | 이상 없음 ✅ |
+| API | 동기화·무효화·상태 API 는 Bearer 인증(상수 시간 비교), 오류 응답에 내부 정보 미노출, 로그에서 토큰·비밀번호·서명 URL 마스킹 | 이상 없음 ✅ |
+| 컨테이너 | 앱·워커 모두 root 가 아닌 사용자로 실행, DB 포트 외부 미노출 | 이상 없음 ✅ |
+| 장애 시 데이터 보호 | 노션 DB 가 삭제·권한 해제돼도 기존 데이터 유지 (실제로 'LUNA 사이트 설정' 삭제 상황에서 확인) | 이상 없음 ✅ |
+
+**운영자 권장 사항**
+- 관리자 비밀번호는 무작위 12자 이상으로 하고, 가능하면 리버스 프록시(Traefik/Nginx)에서 `/admin` 경로에 IP 제한이나 요청 횟수 제한을 거세요 (앱 자체에는 로그인 시도 횟수 제한이 없음).
+- Notion 통합(new_site)은 현재 개인 워크스페이스 전체를 볼 수 있습니다. 사이트용 데이터베이스 4개만 공유하도록 좁히세요.
+- 토큰 유출이 의심되면 Notion 개발자 포털에서 토큰을 재발급하고 `.env` 들을 교체하세요.

@@ -33,6 +33,8 @@ export type SyncDeps = {
   notion: NotionClient;
   dataSourceIds: Partial<Record<CollectionKey, string>>;
   fetchImpl?: typeof fetch;
+  /** 이미지 호스트 DNS 조회 (테스트에서 대체) */
+  lookupImpl?: Parameters<typeof downloadImage>[2];
   lockTtlMs?: number;
   /** auto 모드에서 이 시간 이상 전체 동기화가 없었으면 전체 동기화로 전환 (안전망) */
   fullSyncIntervalMs?: number;
@@ -222,7 +224,7 @@ async function syncCollection(deps: SyncDeps, def: CollectionDef, dataSourceId: 
         imageSourceKey = prev.imageSourceKey;
       } else {
         try {
-          imageId = await storeImage(db, transformed.image.url, transformed.image.sourceKey, def, deps.fetchImpl);
+          imageId = await storeImage(db, transformed.image.url, transformed.image.sourceKey, def, deps.fetchImpl, deps.lookupImpl);
           imageSourceKey = transformed.image.sourceKey;
         } catch (err) {
           // 일시적 실패: 기존 이미지를 유지하고, 해시를 비워 다음 실행에서 재시도. 커서도 이 페이지 이전으로 묶어둔다.
@@ -269,7 +271,7 @@ async function syncCollection(deps: SyncDeps, def: CollectionDef, dataSourceId: 
   let groupOrder: string[] | null = null;
   if (def.key === 'members') {
     const ds = await notion.retrieveDataSource(dataSourceId);
-    const prop = ds.properties[PROPS.members.generation];
+    const prop = ds.properties[PROPS.members.group];
     groupOrder = prop?.select?.options.map((o) => o.name) ?? null;
   }
 
@@ -330,8 +332,8 @@ async function hydrateTruncatedText(notion: NotionClient, page: NotionPage) {
   }
 }
 
-async function storeImage(db: Database, url: string, sourceKey: string, def: CollectionDef, fetchImpl?: typeof fetch): Promise<string> {
-  const raw = await downloadImage(url, fetchImpl);
+async function storeImage(db: Database, url: string, sourceKey: string, def: CollectionDef, fetchImpl?: typeof fetch, lookupImpl?: Parameters<typeof downloadImage>[2]): Promise<string> {
+  const raw = await downloadImage(url, fetchImpl, lookupImpl);
   const image = await processImage(raw, def.imageVariant!);
   await db
     .insert(media)

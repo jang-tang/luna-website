@@ -2,21 +2,46 @@ import { z } from 'zod';
 import type { NotionEnv } from '@/config/env';
 import type { CollectionKey } from '@/services/cache/tags';
 import { awards, members, projects, qnas, siteSettings } from '@/services/database/schema';
-import { readCheckbox, readFirstFile, readNumber, readText, type FileRef } from './properties';
+import { readCheckbox, readDate, readFirstFile, readList, readNumber, readText, type DateRange, type FileRef } from './properties';
 import type { NotionPage } from './types';
 
 /**
  * Notion 데이터 소스 ↔ DB 테이블 매핑 정의.
  * 새 콘텐츠 영역을 추가할 때는 이 파일에 정의를 하나 추가하고 테이블/마이그레이션/쿼리를 만들면 된다.
  *
- * Notion 속성 이름은 운영자가 쓰기 쉽도록 한국어로 정했다. 이름을 바꾸려면 PROPS 만 수정하면 된다.
+ * 속성 이름은 DIMIGO LUNA 워크스페이스의 실제 데이터베이스(Members / Awards / Projects / FAQ)를 따른다.
+ * 이름을 바꾸려면 PROPS 만 수정하면 된다.
+ * - order(순서), published(공개) 는 실제 DB 에 없는 선택 속성이다. 없으면 기본 정렬 / 전체 공개로 처리하고,
+ *   운영자가 같은 이름의 number / checkbox 속성을 추가하면 그대로 반영된다.
+ * - 사이트 설정(settings)은 실제 워크스페이스에 대응 DB 가 없어 별도 'LUNA 사이트 설정' DB(한국어 속성)를 쓴다.
  */
 
 export const PROPS = {
-  members: { name: '이름', generation: '기수', position: '역할', className: '소속', description: '소개', image: '사진', order: '순서', published: '공개' },
-  awards: { name: '대회명', year: '연도', prize: '수상', team: '팀', members: '참여자', date: '일자', image: '사진', order: '순서', published: '공개' },
-  projects: { name: '프로젝트명', year: '연도', description: '설명', awards: '수상 내역', image: '이미지', order: '순서', published: '공개' },
-  qna: { question: '질문', answer: '답변', order: '순서', published: '공개' },
+  members: {
+    name: 'name',
+    group: 'lunaGeneration', // 탭: LUNA 9기, LUNA 8기 …, 명예 멤버
+    cohort: 'generation', // 학교 기수: 25기
+    department: 'class', // 학과: 웹프로그래밍과
+    position: 'position',
+    description: 'description',
+    image: 'image',
+    order: 'order',
+    published: 'published',
+  },
+  awards: {
+    name: 'name',
+    year: 'year',
+    prize: 'prize',
+    team: 'team',
+    members: 'members',
+    date: 'date',
+    prizeMoney: 'prizemoney',
+    image: 'image',
+    order: 'order',
+    published: 'published',
+  },
+  projects: { name: 'name', year: 'year', description: 'description', awards: 'awards', image: 'image', order: 'order', published: 'published' },
+  qna: { question: 'question', answer: 'answer', order: 'order', published: 'published' },
   settings: { key: '키', value: '값', description: '설명', order: '순서', published: '공개' },
 } as const;
 
@@ -53,11 +78,31 @@ export type CollectionDef<R extends Record<string, unknown> = Record<string, unk
   schema: z.ZodType<R>;
   transform: (page: NotionPage) => Transformed<unknown>;
   imageVariant?: ImageVariant;
-  /** Notion 데이터베이스 생성용 속성 스키마 (부트스트랩 스크립트) */
-  notionProperties: Record<string, unknown>;
 };
 
-const orderOf = (page: NotionPage, name: string) => readNumber(page, name) ?? Number.MAX_SAFE_INTEGER / 2;
+// 순서 값이 없는 행은 순서가 있는 행 뒤에 오고, 그 안에서는 이름순(쿼리에서 처리)
+const UNORDERED = Number.MAX_SAFE_INTEGER / 2;
+const orderOf = (page: NotionPage, name: string) => readNumber(page, name) ?? UNORDERED;
+
+const DAY_WORDS = ['', '하루', '이틀', '사흘', '나흘', '닷새', '엿새', '이레', '여드레', '아흐레', '열흘'];
+const DAY_MS = 86_400_000;
+
+/** 원본 화면의 날짜 문구: "2024년 01월 20일 하루동안", "2017년 11월 12일부터 이틀동안" */
+export function formatAwardDate(range: DateRange | null): string {
+  if (!range) return '';
+  const [y, m, d] = range.start.split('-');
+  const head = `${y}년 ${m}월 ${d}일`;
+  const days = range.end ? Math.round((Date.parse(range.end) - Date.parse(range.start)) / DAY_MS) + 1 : 1;
+  if (days <= 1) return `${head} 하루동안`;
+  return `${head}부터 ${DAY_WORDS[days] ?? `${days}일`}동안`;
+}
+
+/** 업적은 같은 연도 안에서 최신 날짜가 먼저 (원본 데이터의 나열 순서와 동일) */
+function awardOrder(page: NotionPage, date: DateRange | null): number {
+  const explicit = readNumber(page, PROPS.awards.order);
+  if (explicit !== null) return explicit;
+  return date ? -Math.floor(Date.parse(date.start) / DAY_MS) : UNORDERED;
+}
 
 const memberSchema = z.object({
   name: text(100).min(1),
@@ -107,25 +152,16 @@ export const COLLECTIONS = {
     transform: (page) => ({
       record: {
         name: readText(page, P.members.name),
-        generation: readText(page, P.members.generation),
+        generation: readText(page, P.members.group),
         position: readText(page, P.members.position, { optional: true }),
-        className: readText(page, P.members.className, { optional: true }),
+        // 원본 표기: "22기 해킹방어과"
+        className: [readText(page, P.members.cohort, { optional: true }), readText(page, P.members.department, { optional: true })].filter(Boolean).join(' '),
         description: readText(page, P.members.description, { optional: true }),
       },
       image: readFirstFile(page, P.members.image),
       sortOrder: orderOf(page, P.members.order),
       published: readCheckbox(page, P.members.published),
     }),
-    notionProperties: {
-      [P.members.name]: { title: {} },
-      [P.members.generation]: { select: { options: [] } },
-      [P.members.position]: { select: { options: [] } },
-      [P.members.className]: { rich_text: {} },
-      [P.members.description]: { rich_text: {} },
-      [P.members.image]: { files: {} },
-      [P.members.order]: { number: { format: 'number' } },
-      [P.members.published]: { checkbox: {} },
-    },
   },
   awards: {
     key: 'awards',
@@ -135,29 +171,21 @@ export const COLLECTIONS = {
     titleProperty: P.awards.name,
     schema: awardSchema,
     imageVariant: IMAGE_VARIANTS.awards,
-    transform: (page) => ({
-      record: {
-        year: readNumber(page, P.awards.year),
-        name: readText(page, P.awards.name),
-        prize: readText(page, P.awards.prize, { optional: true }),
-        team: readText(page, P.awards.team, { optional: true }),
-        members: readText(page, P.awards.members, { optional: true }),
-        dateText: readText(page, P.awards.date, { optional: true }),
-      },
-      image: readFirstFile(page, P.awards.image),
-      sortOrder: orderOf(page, P.awards.order),
-      published: readCheckbox(page, P.awards.published),
-    }),
-    notionProperties: {
-      [P.awards.name]: { title: {} },
-      [P.awards.year]: { number: { format: 'number' } },
-      [P.awards.prize]: { rich_text: {} },
-      [P.awards.team]: { rich_text: {} },
-      [P.awards.members]: { rich_text: {} },
-      [P.awards.date]: { rich_text: {} },
-      [P.awards.image]: { files: {} },
-      [P.awards.order]: { number: { format: 'number' } },
-      [P.awards.published]: { checkbox: {} },
+    transform: (page) => {
+      const date = readDate(page, P.awards.date);
+      return {
+        record: {
+          year: readNumber(page, P.awards.year),
+          name: readText(page, P.awards.name),
+          prize: readText(page, P.awards.prize, { optional: true }),
+          team: readText(page, P.awards.team, { optional: true }),
+          members: readText(page, P.awards.members, { optional: true }),
+          dateText: formatAwardDate(date),
+        },
+        image: readFirstFile(page, P.awards.image),
+        sortOrder: awardOrder(page, date),
+        published: readCheckbox(page, P.awards.published),
+      };
     },
   },
   projects: {
@@ -173,24 +201,12 @@ export const COLLECTIONS = {
         year: readNumber(page, P.projects.year),
         name: readText(page, P.projects.name),
         description: readText(page, P.projects.description, { optional: true }),
-        awards: readText(page, P.projects.awards, { optional: true })
-          .split('\n')
-          .map((s) => s.trim())
-          .filter(Boolean),
+        awards: readList(page, P.projects.awards),
       },
       image: readFirstFile(page, P.projects.image),
       sortOrder: orderOf(page, P.projects.order),
       published: readCheckbox(page, P.projects.published),
     }),
-    notionProperties: {
-      [P.projects.name]: { title: {} },
-      [P.projects.year]: { number: { format: 'number' } },
-      [P.projects.description]: { rich_text: {} },
-      [P.projects.awards]: { rich_text: {} },
-      [P.projects.image]: { files: {} },
-      [P.projects.order]: { number: { format: 'number' } },
-      [P.projects.published]: { checkbox: {} },
-    },
   },
   qna: {
     key: 'qna',
@@ -208,12 +224,6 @@ export const COLLECTIONS = {
       sortOrder: orderOf(page, P.qna.order),
       published: readCheckbox(page, P.qna.published),
     }),
-    notionProperties: {
-      [P.qna.question]: { title: {} },
-      [P.qna.answer]: { rich_text: {} },
-      [P.qna.order]: { number: { format: 'number' } },
-      [P.qna.published]: { checkbox: {} },
-    },
   },
   settings: {
     key: 'settings',
@@ -231,13 +241,6 @@ export const COLLECTIONS = {
       sortOrder: orderOf(page, P.settings.order),
       published: readCheckbox(page, P.settings.published),
     }),
-    notionProperties: {
-      [P.settings.key]: { title: {} },
-      [P.settings.value]: { rich_text: {} },
-      [P.settings.description]: { rich_text: {} },
-      [P.settings.order]: { number: { format: 'number' } },
-      [P.settings.published]: { checkbox: {} },
-    },
   },
 } satisfies Record<CollectionKey, CollectionDef>;
 

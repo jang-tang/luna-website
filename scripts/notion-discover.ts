@@ -27,7 +27,9 @@ async function main() {
     // 속성 이름이 가장 많이 겹치는 컬렉션을 후보로 제안
     let best: { key: string; score: number } | null = null;
     for (const def of Object.values(COLLECTIONS)) {
-      const expected = Object.values(PROPS[def.key]);
+      // 제목(title) 속성 이름이 일치해야 후보가 된다. 순서/공개는 선택 속성이라 점수에서 제외
+      if (ds.properties?.[def.titleProperty]?.type !== 'title') continue;
+      const expected = Object.entries(PROPS[def.key]).filter(([k]) => k !== 'order' && k !== 'published').map(([, v]) => v);
       const score = expected.filter((p) => props.includes(p)).length / expected.length;
       if (!best || score > best.score) best = { key: def.key, score };
     }

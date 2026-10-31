@@ -28,6 +28,8 @@ export const P = {
   number: (n: number | null): Prop => ({ id: 'num', type: 'number', number: n }),
   select: (s: string | null): Prop => ({ id: 'sel', type: 'select', select: s ? { name: s } : null }),
   check: (b: boolean): Prop => ({ id: 'chk', type: 'checkbox', checkbox: b }),
+  multi: (names: string[]): Prop => ({ id: 'ms', type: 'multi_select', multi_select: names.map((name) => ({ name })) }),
+  date: (start: string | null, end: string | null = null): Prop => ({ id: 'dt', type: 'date', date: start ? { start, end } : null }),
   file: (key: string): Prop => ({
     id: 'files',
     type: 'files',

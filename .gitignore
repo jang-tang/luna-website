@@ -21,3 +21,6 @@ perf/raw/
 .idea/workspace.xml
 .notion-bootstrap.json
 dist/
+
+# Next.js 개발 서버가 자동 생성하는 AI 에이전트용 파일
+AGENTS.md

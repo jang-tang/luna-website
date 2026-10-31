@@ -24,12 +24,12 @@ export async function selectMemberGroups(db: Database): Promise<MemberGroup[]> {
       })
       .from(members)
       .where(eq(members.status, 'published'))
-      .orderBy(asc(members.sortOrder), asc(members.id)),
+      .orderBy(asc(members.sortOrder), asc(members.name), asc(members.id)),
     db.select({ name: memberGroups.name, sortOrder: memberGroups.sortOrder }).from(memberGroups),
   ]);
 
-  // 탭 순서: Notion '기수' 옵션 순서 → (옵션에 없는 기수는) 멤버 정렬 순서상 처음 등장한 순서
-  const groupOrder = new Map(groups.map((g) => [g.name, g.sortOrder]));
+  // 탭 순서: "LUNA N기" 는 숫자가 큰 순서(최신 기수 먼저) → 그 외(명예 멤버 등)는 Notion 선택지 순서 → 처음 등장한 순서
+  const optionOrder = new Map(groups.map((g) => [g.name, g.sortOrder]));
   const byGroup = new Map<string, MemberGroup>();
   const firstSeen = new Map<string, number>();
   rows.forEach((row, i) => {
@@ -48,7 +48,11 @@ export async function selectMemberGroups(db: Database): Promise<MemberGroup[]> {
       image: mediaUrl(row.imageId),
     });
   });
-  const rank = (name: string) => groupOrder.get(name) ?? Number.MAX_SAFE_INTEGER;
+  const rank = (name: string) => {
+    const generation = /(\d+)\s*기/.exec(name);
+    if (generation) return -Number(generation[1]);
+    return 1_000_000 + (optionOrder.get(name) ?? 1_000_000);
+  };
   return [...byGroup.values()].sort((a, b) => rank(a.name) - rank(b.name) || firstSeen.get(a.name)! - firstSeen.get(b.name)!);
 }
 
@@ -77,7 +81,7 @@ export async function selectAwardYears(db: Database): Promise<AwardYear[]> {
     })
     .from(awards)
     .where(eq(awards.status, 'published'))
-    .orderBy(asc(awards.sortOrder), asc(awards.id));
+    .orderBy(asc(awards.sortOrder), asc(awards.name), asc(awards.id));
   return groupByYear(rows, (r) => ({
     key: String(r.id),
     name: r.name,
@@ -94,7 +98,7 @@ export async function selectProjectYears(db: Database): Promise<ProjectYear[]> {
     .select({ id: projects.id, year: projects.year, name: projects.name, description: projects.description, imageId: projects.imageId })
     .from(projects)
     .where(eq(projects.status, 'published'))
-    .orderBy(asc(projects.sortOrder), asc(projects.id));
+    .orderBy(asc(projects.sortOrder), asc(projects.name), asc(projects.id));
   return groupByYear(rows, (r) => ({ key: String(r.id), name: r.name, description: r.description, image: mediaUrl(r.imageId) })).map(
     ([year, list]) => ({ year, projects: list }),
   );
@@ -105,7 +109,7 @@ export async function selectQnas(db: Database): Promise<QnaItem[]> {
     .select({ id: qnas.id, question: qnas.question, answer: qnas.answer })
     .from(qnas)
     .where(eq(qnas.status, 'published'))
-    .orderBy(asc(qnas.sortOrder), asc(qnas.id));
+    .orderBy(asc(qnas.sortOrder), asc(qnas.question), asc(qnas.id));
   return rows.map((r) => ({ key: String(r.id), question: r.question, answer: r.answer }));
 }
 
